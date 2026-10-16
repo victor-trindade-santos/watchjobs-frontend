@@ -1,0 +1,167 @@
+# WatchJobs: frontend
+
+## Sumário
+
+- [1. Projeto e grupo](#1-projeto-e-grupo)
+- [2. Repositórios](#2-repositórios)
+- [3. Integrante e entidades](#3-integrante-e-entidades)
+- [4. O que a aplicação faz](#4-o-que-a-aplicação-faz)
+   - [4.1 Vaga salva × candidatura: qual é a diferença?](#41-vaga-salva--candidatura-qual-é-a-diferença)
+- [5. Tecnologias](#5-tecnologias)
+- [6. Camadas e pastas](#6-camadas-e-pastas)
+- [7. Instalação, execução e acesso](#7-instalação-execução-e-acesso)
+   - [7.0 Pré-requisitos](#70-pré-requisitos)
+   - [7.1 Integrado ao backend (dados reais no PostgreSQL)](#71-integrado-ao-backend-dados-reais-no-postgresql)
+   - [7.2 Sem o backend (modo demonstração)](#72-sem-o-backend-modo-demonstração)
+   - [7.3 Testes](#73-testes)
+
+## 1. Projeto e grupo
+
+**WatchJobs.** Grupo: individual.
+
+## 2. Repositórios
+
+- Backend: https://github.com/victor-trindade-santos/watchjobs-backend
+- Frontend: https://github.com/victor-trindade-santos/watchjobs-frontend
+
+## 3. Integrante e entidades
+
+| Integrante | Responsável por |
+|---|---|
+| Victor Trindade dos Santos | Entidades **SavedJob** (vaga salva) e **Application** (candidatura), além da autenticação |
+
+## 4. O que a aplicação faz
+
+Quem procura emprego perde o controle de quais vagas lhe interessaram, onde já se candidatou, em que etapa está cada processo e quando é a próxima entrevista. O WatchJobs centraliza isso: registra as vagas de interesse e as candidaturas, com etapa, status, datas e entrevistas, e tem busca nas duas listas.
+
+O mesmo código roda no **Android**, no **Desktop** e na **Web**:
+
+- **Login e cadastro**, com os erros de validação do backend mostrados embaixo de cada campo.
+- **Vagas salvas:** lista com busca por cargo ou empresa, indicadores e formulário com **Gravar** e **Limpar Campos**, além de editar e excluir.
+- **Candidaturas:** quadro por status (Candidatadas, Em processo, Propostas, Encerradas), com busca e formulário com **Gravar** e **Limpar Campos**, além de editar e excluir. Criar ou editar uma candidatura atualiza o status da vaga.
+
+### 4.1 Vaga salva × candidatura: qual é a diferença?
+
+São duas etapas diferentes da busca por emprego, por isso cada uma tem a sua aba e o seu formulário.
+
+| | **Vaga salva** (aba **Vagas salvas**) | **Candidatura** (aba **Candidaturas**) |
+|---|---|---|
+| O que representa | Uma **oportunidade** que chamou sua atenção. Você ainda pode nem ter se candidatado | O **processo seletivo** que começou quando você se candidatou àquela vaga |
+| Pergunta que responde | "Que vaga é essa?" | "Como está indo a minha candidatura?" |
+| O que se preenche | Cargo, empresa, link, local, modo de trabalho, nível, contrato, faixa salarial e anotações | Etapa (Triagem → Proposta), status, data de início e de término, próxima entrevista, notas e feedback da empresa |
+| Quando é criada | Assim que você encontra a vaga (botão **+ Nova vaga**) | Só quando você se candidata a uma vaga **já salva** (**+ Nova candidatura** ou **Candidatar-se** na lista de vagas) |
+| Como aparece | Lista com busca, faixa salarial e etiquetas de status | Quadro com colunas Candidatadas, Em processo, Propostas e Encerradas |
+
+**Como as duas se relacionam (1 vaga → no máximo 1 candidatura):**
+
+1. **Salve a vaga.** Ela aparece em **Vagas salvas** com o status "Salva" ou "Planejando se candidatar".
+2. **Candidate-se.** No formulário de candidatura, só aparecem as vagas que ainda não têm candidatura. Ao gravar, a vaga ganha a etiqueta "Com candidatura" e passa para "Candidatado".
+3. **Acompanhe o processo.** Editar a candidatura (etapa, entrevista, status) também atualiza o status da vaga. Mudar para "Em processo" move o cartão para a coluna seguinte do quadro.
+4. **Exclua a candidatura.** A vaga continua salva e volta para "Salva".
+5. **Exclua a vaga.** A candidatura dela é excluída junto. O app avisa isso antes de confirmar.
+
+**Exemplo:** você vê a vaga "Desenvolvedor Kotlin" na ACME e **salva**. Uma semana depois, envia o currículo e cria a **candidatura**. A partir daí, a candidatura registra a entrevista com o RH no dia 22, a mudança para "Teste técnico" e o feedback recebido. Na lista de vagas, você vê de relance em que pé está cada uma.
+
+## 5. Tecnologias
+
+Kotlin Multiplatform 2.4, Compose Multiplatform 1.11 (Material 3), ViewModel multiplataforma (`lifecycle-viewmodel-compose`), kotlinx.serialization, kotlinx-datetime e kotlinx.coroutines. O HTTP usa **clientes nativos, sem Ktor**: `HttpURLConnection` no Android, `java.net.http.HttpClient` no Desktop e `fetch()` na Web. Gradle Kotlin DSL com Android Gradle Plugin 9.
+
+## 6. Camadas e pastas
+
+Código comum em `shared/src/commonMain/kotlin/com/watchjobs/`:
+
+| Camada | Pasta | O que tem |
+|---|---|---|
+| Apresentação | `ui/auth/`, `ui/savedjob/`, `ui/application/`, `ui/components/`, `ui/theme/` | Telas, formulários, componentes (logo, campos, listas de seleção, quadro) e o tema |
+| Estado | `viewmodel/` | ViewModels com `StateFlow` (estado do formulário, erros por campo, carregamento) |
+| Dados | `data/repository/`, `data/remote/`, `data/dto/`, `data/local/` | Repositórios, `ApiClient` e `HttpTransport`, DTOs e `TokenStorage` |
+| Domínio | `model/` | `SavedJob`, `Application`, `ApplicationStage`, `User` e enums com rótulos em português |
+| Navegação e injeção | `App.kt`, `AppContainer.kt` | `sealed interface Screen` + `when`, e a criação manual das dependências |
+
+Código de cada plataforma (`expect`/`actual`):
+
+| Plataforma | Pasta | O que tem |
+|---|---|---|
+| Android | `shared/src/androidMain/`, `androidApp/` | `HttpURLConnection`, `SharedPreferences`, `MainActivity` e o `AndroidManifest.xml` |
+| Desktop | `shared/src/jvmMain/`, `desktopApp/` | `java.net.http.HttpClient`, `java.util.prefs` e a janela |
+| Web | `shared/src/wasmJsMain/`, `webApp/` | `fetch()`, `localStorage` e o `index.html` |
+
+## 7. Instalação, execução e acesso
+
+### 7.0 Pré-requisitos
+
+1. **Java 21.** Confira com `java -version`.
+2. **Android SDK**, só para rodar no Android. Informe o caminho pela variável `ANDROID_HOME` ou pelo `sdk.dir` no `local.properties`.
+3. **VS Code com a extensão REST Client** (autor: Huachao Mao), opcional. O app não precisa dela, mas ela executa o `requests.http` do backend para testar a API diretamente. Para instalar:
+   - No VS Code, abra **Extensões** (`Ctrl+Shift+X`), busque **REST Client** e clique em **Instalar**.
+   - Pelo terminal: `code --install-extension humao.rest-client`.
+4. **Clonar o repositório:**
+
+```powershell
+git clone https://github.com/victor-trindade-santos/watchjobs-frontend.git
+cd watchjobs-frontend
+```
+
+O app pode rodar de duas formas.
+
+### 7.1 Integrado ao backend (dados reais no PostgreSQL)
+
+É a forma completa: o app conversa com a API e os dados ficam gravados no banco.
+
+**1º passo: suba o backend antes do app.** É ele que acessa o banco de dados. Sem ele no ar, o app mostra "Não foi possível conectar ao servidor". No repositório [watchjobs-backend](https://github.com/victor-trindade-santos/watchjobs-backend), com o Docker aberto:
+
+```powershell
+cd watchjobs-backend
+.\gradlew.bat bootRun
+```
+
+Espere aparecer `Tomcat started on port 8081` no log. O `bootRun` também sobe o PostgreSQL pelo Docker Compose e aplica as migrations.
+
+**Sem Docker?** Suba o backend com o banco H2 embutido, sem instalar nenhum banco: `.\gradlew.bat bootRun -Ph2`. Os dados ficam em memória e somem quando o backend para. Os detalhes estão na seção 7.2 do README do backend.
+
+**2º passo: em outro terminal, rode o app** na plataforma desejada:
+
+```powershell
+cd watchjobs-frontend
+
+# Desktop
+.\gradlew.bat :desktopApp:run
+
+# Web (abre em http://localhost:8080, a origem liberada no CORS do backend)
+.\gradlew.bat :webApp:wasmJsBrowserDevelopmentRun
+
+# Android: gera o APK e instala no emulador já ligado
+.\gradlew.bat :androidApp:assembleDebug
+adb install -r androidApp\build\outputs\apk\debug\androidApp-debug.apk
+```
+
+No emulador Android, o app acessa o backend pelo endereço `10.0.2.2:8081`, que é o `localhost` do PC visto de dentro do emulador. Num celular de verdade, troque o endereço em `shared/src/androidMain/.../UrlConnectionTransport.kt` pelo IP do PC na mesma rede Wi-Fi.
+
+**Primeiro acesso:** na tela de login, clique em **Criar conta**, cadastre-se e entre com o e-mail e a senha.
+
+### 7.2 Sem o backend (modo demonstração)
+
+Para conhecer o app sem instalar Docker nem subir o backend. O app usa um **backend simulado em memória** (`FakeBackendTransport`), com as mesmas rotas, validações, regras de status e mensagens de erro da API. Uma faixa vermelha no topo indica o modo. Os dados somem ao fechar o app.
+
+```powershell
+# Desktop
+.\gradlew.bat :desktopApp:run -Pdemo
+
+# Web: rode o comando abaixo e abra http://localhost:8080/?demo no navegador
+.\gradlew.bat :webApp:wasmJsBrowserDevelopmentRun
+```
+
+**Acesso pronto:** `demo@watchjobs.com`, senha `demo1234`, que já tem vagas e candidaturas de exemplo. Também dá para criar uma conta nova em **Criar conta**.
+
+O modo demonstração existe no Desktop e na Web. O Android sempre usa o backend.
+
+### 7.3 Testes
+
+```powershell
+.\gradlew.bat :shared:jvmTest
+```
+
+Esse comando roda os testes de formatação (datas e valores) e o **teste integrado**, que abre o app de verdade e faz o fluxo completo: cadastro, login, CRUD das duas entidades, busca, regras de status, exclusões e logout. As capturas de tela ficam em `shared/build/screenshots`.
+
+- **Em modo demonstração**, o fluxo roda sempre.
+- **Contra o backend real**, o fluxo só roda se o backend estiver no ar em `localhost:8081`. Com o backend fora do ar, essa parte é ignorada.
