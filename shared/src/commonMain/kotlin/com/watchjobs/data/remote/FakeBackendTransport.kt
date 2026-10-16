@@ -95,7 +95,7 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
         return when (segments.firstOrNull()) {
             "me" -> if (method == "GET" && segments.size == 1) ok(user) else notFound()
             "application-stages" -> if (method == "GET") ok(stages.filter { query.isNullOrBlank() || it.name.contains(query.trim(), true) }) else notFound()
-            "saved-jobs" -> notFound()
+            "saved-jobs" -> savedJobs(method, segments.getOrNull(1), user.id, query, body)
             "applications" -> notFound()
             else -> notFound()
         }
@@ -148,6 +148,104 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
         return users.firstOrNull { it.user.id == userId }?.user
     }
 
+    // ---------- vagas salvas ----------
+
+    private fun savedJobs(method: String, idText: String?, userId: Int, query: String?, body: String?): HttpResult {
+        if (idText == null) {
+            return when (method) {
+                "GET" -> ok(
+                    jobs.filter { it.userId == userId }
+                        .map { it.job }
+                        .filter { query.isNullOrBlank() || it.positionRole.contains(query.trim(), true) || it.organizationName.contains(query.trim(), true) }
+                        .sortedByDescending { it.id }
+                )
+                "POST" -> createJob(userId, decode(body))
+                else -> notFound()
+            }
+        }
+        val id = idText.toLongOrNull() ?: return error(400, "INVALID_PARAMETER", "Parâmetro inválido: id")
+        val stored = jobs.firstOrNull { it.userId == userId && it.job.id == id }
+            ?: return error(404, "NOT_FOUND", "Vaga não encontrada")
+        return when (method) {
+            "GET" -> ok(stored.job)
+            "PUT" -> updateJob(stored, decode(body))
+            "DELETE" -> {
+                // A candidatura vai junto, como o ON DELETE CASCADE da V2.
+                jobs.remove(stored)
+                applications.removeAll { it.savedJobId == id }
+                HttpResult(204, "")
+            }
+            else -> notFound()
+        }
+    }
+
+    private fun validateJob(request: SavedJobRequest) {
+        Checks().apply {
+            check("positionRole", request.positionRole.isNotBlank(), "Cargo é obrigatório")
+            check("positionRole", request.positionRole.length <= 255, "Cargo deve ter no máximo 255 caracteres")
+            check("organizationName", request.organizationName.isNotBlank(), "Empresa é obrigatória")
+            check("organizationName", request.organizationName.length <= 150, "Empresa deve ter no máximo 150 caracteres")
+            check("jobUrl", (request.jobUrl?.length ?: 0) <= 2048, "URL da vaga deve ter no máximo 2048 caracteres")
+            check("locationCity", (request.locationCity?.length ?: 0) <= 100, "Cidade deve ter no máximo 100 caracteres")
+            check("locationState", (request.locationState?.length ?: 0) <= 100, "Estado deve ter no máximo 100 caracteres")
+            check("locationCountryCode", request.locationCountryCode?.let { Regex("^[A-Z]{2}$").matches(it) } ?: true, "País deve ter 2 letras maiúsculas")
+            check("salaryMin", (request.salaryMin ?: 0.0) >= 0, "Salário mínimo não pode ser negativo")
+            check("salaryMax", (request.salaryMax ?: 0.0) >= 0, "Salário máximo não pode ser negativo")
+            check("salaryCurrency", request.salaryCurrency?.let { Regex("^[A-Z]{3}$").matches(it) } ?: true, "Moeda deve ter 3 letras maiúsculas")
+            check("notes", (request.notes?.length ?: 0) <= 4000, "Notas devem ter no máximo 4000 caracteres")
+        }.throwIfAny()
+        val min = request.salaryMin
+        val max = request.salaryMax
+        if (min != null && max != null && min > max) {
+            throw Fail(error(400, "BUSINESS_RULE", "Salário mínimo não pode ser maior que o salário máximo"))
+        }
+    }
+
+    private fun createJob(userId: Int, request: SavedJobRequest): HttpResult {
+        validateJob(request)
+        val now = now()
+        val job = request.toJob(nextJobId++, now, now)
+        jobs += StoredJob(userId, job)
+        return ok(job, 201)
+    }
+
+    private fun updateJob(stored: StoredJob, request: SavedJobRequest): HttpResult {
+        validateJob(request)
+        val current = stored.job
+        val application = applications.firstOrNull { it.savedJobId == current.id }
+        if (application != null && request.status in setOf(SavedJobStatus.SAVED, SavedJobStatus.PLANNING_TO_APPLY)) {
+            throw Fail(error(409, "CONFLICT", "Exclua a candidatura para voltar a vaga para Salva ou Planejando se candidatar"))
+        }
+        val statusChanged = current.status != request.status
+        stored.job = request.toJob(
+            id = current.id ?: 0,
+            savedAt = current.savedAt ?: now(),
+            statusUpdatedAt = if (statusChanged) now() else current.statusUpdatedAt ?: now()
+        )
+        if (statusChanged) application?.status = request.status.name
+        return ok(stored.job)
+    }
+
+    private fun SavedJobRequest.toJob(id: Long, savedAt: LocalDateTime, statusUpdatedAt: LocalDateTime) = SavedJob(
+        id = id,
+        positionRole = positionRole.trim(),
+        organizationName = organizationName.trim(),
+        jobUrl = jobUrl,
+        locationCity = locationCity,
+        locationState = locationState,
+        locationCountryCode = locationCountryCode,
+        workMode = workMode,
+        experienceLevel = experienceLevel,
+        jobType = jobType,
+        salaryMin = salaryMin,
+        salaryMax = salaryMax,
+        salaryCurrency = salaryCurrency,
+        status = status,
+        notes = notes,
+        savedAt = savedAt,
+        statusUpdatedAt = statusUpdatedAt
+    )
+
     // ---------- utilitários ----------
 
     private class Checks {
@@ -193,6 +291,19 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
     private fun seedDemoData() {
         val user = User(nextUserId++, "Maya", "Rendell", DEMO_EMAIL, LocalDate(1995, 5, 10))
         users += StoredUser(user, DEMO_PASSWORD)
+        val today = today()
+        fun job(role: String, company: String, city: String?, state: String?, mode: WorkMode, level: ExperienceLevel?, type: JobType?, min: Double?, max: Double?, currency: String?, status: SavedJobStatus): Long {
+            val request = SavedJobRequest(role, company, null, city, state, if (state != null) "BR" else null, mode, level, type, min, max, currency, status, null)
+            val id = nextJobId++
+            jobs += StoredJob(user.id, request.toJob(id, now(), now()))
+            return id
+        }
+        val northlight = job("Senior Product Designer, Platform", "Northlight Systems", "São Paulo", "SP", WorkMode.HYBRID, ExperienceLevel.SENIOR, JobType.CLT, 15000.0, 22000.0, "BRL", SavedJobStatus.IN_PROCESS)
+        val ferrolane = job("Staff Product Designer, Payments", "Ferrolane", "Amsterdam", null, WorkMode.REMOTE, ExperienceLevel.LEAD, JobType.PJ, 105000.0, 125000.0, "EUR", SavedJobStatus.OFFER_RECEIVED)
+        val halden = job("Design Engineer", "Halden Labs", "Copenhagen", null, WorkMode.ONSITE, ExperienceLevel.MID, JobType.CLT, null, null, null, SavedJobStatus.APPLIED)
+        val trailhead = job("Senior UX Researcher", "Trailhead Grid", null, null, WorkMode.HYBRID, ExperienceLevel.SENIOR, null, null, null, null, SavedJobStatus.REJECTED)
+        job("Head of Design", "Ostrom Analytics", "Curitiba", "PR", WorkMode.REMOTE, ExperienceLevel.LEAD, null, 30000.0, null, "BRL", SavedJobStatus.PLANNING_TO_APPLY)
+        job("Product Manager, Marketplace", "Meridian Freight", "Recife", "PE", WorkMode.REMOTE, ExperienceLevel.MID, JobType.CLT, 12000.0, 16000.0, "BRL", SavedJobStatus.SAVED)
     }
 
     companion object {
