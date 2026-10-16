@@ -14,6 +14,9 @@
    - [7.1 Integrado ao backend (dados reais no PostgreSQL)](#71-integrado-ao-backend-dados-reais-no-postgresql)
    - [7.2 Sem o backend (modo demonstração)](#72-sem-o-backend-modo-demonstração)
    - [7.3 Testes](#73-testes)
+- [Checklist dos requisitos da prova](#checklist-dos-requisitos-da-prova)
+   - [Parte 2: frontend](#parte-2-frontend)
+   - [Critérios de avaliação](#critérios-de-avaliação)
 
 ## 1. Projeto e grupo
 
@@ -165,3 +168,51 @@ Esse comando roda os testes de formatação (datas e valores) e o **teste integr
 
 - **Em modo demonstração**, o fluxo roda sempre.
 - **Contra o backend real**, o fluxo só roda se o backend estiver no ar em `localhost:8081`. Com o backend fora do ar, essa parte é ignorada.
+
+## Checklist dos requisitos da prova
+
+Como este repositório atende à **Parte 2 (frontend, 2,0 pontos)** e aos critérios de avaliação. Os caminhos partem de `shared/src/commonMain/kotlin/com/watchjobs/`.
+
+### Parte 2: frontend
+
+- [x] **Kotlin Multiplatform + Compose Multiplatform para Android, Desktop e Web:** as telas, o estado e a lógica ficam no código comum (`shared/src/commonMain`). Cada plataforma tem o próprio módulo: [`androidApp/`](androidApp), [`desktopApp/`](desktopApp) e [`webApp/`](webApp) (Wasm). O HTTP e o armazenamento do token são nativos de cada plataforma, por `expect`/`actual`, sem Ktor.
+
+- [x] **2a. Entidades do projeto (0,5):** duas entidades do integrante, cada uma com mais de 5 propriedades além do id e pelo menos 2 tipos da lista além do tipo do id.
+  - [`SavedJob`](shared/src/commonMain/kotlin/com/watchjobs/model/SavedJob.kt): 16 propriedades além do id (`Long`). Tipos **String** (cargo, empresa, URL, local, moeda, notas), **Double** (`salaryMin`, `salaryMax`) e **LocalDateTime** (`savedAt`, `statusUpdatedAt`).
+  - [`Application`](shared/src/commonMain/kotlin/com/watchjobs/model/Application.kt): 11 propriedades além do id (`Int`). Tipos **String** (status, notas, feedback), **Int** (`stageId`), **LocalDate** (`startDate`, `endDate`) e **LocalDateTime** (`interviewAt`).
+  - As duas são `@Serializable` (kotlinx.serialization) e usam as datas do kotlinx-datetime. Os enums têm rótulos em português.
+
+- [x] **2b. Formulário por entidade com Gravar e Limpar Campos (1,5):**
+  - [`SavedJobFormScreen`](shared/src/commonMain/kotlin/com/watchjobs/ui/savedjob/SavedJobFormScreen.kt): cargo, empresa, URL, cidade, estado, país, modo de trabalho, nível, contrato, salários, moeda, status e notas, com listas de seleção para os enums.
+  - [`ApplicationFormScreen`](shared/src/commonMain/kotlin/com/watchjobs/ui/application/ApplicationFormScreen.kt): vaga, etapa, status, datas de início e término, entrevista, notas e feedback.
+  - Nos dois formulários:
+    - **Gravar** envia `POST` (novo) ou `PUT` (edição) ao backend e volta para a lista com uma confirmação.
+    - **Limpar Campos** esvazia os campos editáveis e os erros.
+    - Os erros de validação do backend (400) aparecem embaixo de cada campo.
+  - Cada entidade tem também a sua lista, com busca, edição e exclusão com confirmação:
+    - [`SavedJobListScreen`](shared/src/commonMain/kotlin/com/watchjobs/ui/savedjob/SavedJobListScreen.kt).
+    - [`ApplicationListScreen`](shared/src/commonMain/kotlin/com/watchjobs/ui/application/ApplicationListScreen.kt), em formato de quadro por status.
+  - O cadastro de usuário ([`SignupScreen`](shared/src/commonMain/kotlin/com/watchjobs/ui/auth/AuthScreens.kt)) também tem **Cadastrar** e **Limpar Campos**.
+
+- [x] **Integração com o backend da Parte 1:**
+  - Login (`/signin`) e cadastro (`/signup`), com o token JWT enviado no cabeçalho `Authorization` das rotas protegidas.
+  - Quando o token expira (401), o app volta para o login.
+  - O [`ApiClient`](shared/src/commonMain/kotlin/com/watchjobs/data/remote/ApiClient.kt) usa os mesmos DTOs e o mesmo formato de erro `{ code, message, details }` da API.
+
+### Critérios de avaliação
+
+- [x] **3a. Professor como colaborador:** `antoniorcn@hotmail.com` foi convidado neste repositório e no do backend.
+- [x] **3b e 3c. Autoria no histórico Git:** o histórico tem commits por etapa, feitos pelo integrante.
+- [x] **3d. Compila e roda:**
+  - Integrado ao backend, conforme a seção 7.1.
+  - Sem backend, em modo demonstração, conforme a seção 7.2.
+  - O `.\gradlew.bat :shared:jvmTest` abre o app e faz o fluxo completo: cadastro, login, CRUD das duas entidades, busca, Gravar, Limpar Campos, exclusões e logout. As capturas de tela ficam em `shared/build/screenshots`.
+- [x] **3e. README com os 7 itens:**
+  - i. Nome do projeto e do grupo: seção 1.
+  - ii. Links dos repositórios: seção 2.
+  - iii. Integrantes e entidades: seção 3.
+  - iv. O que a aplicação faz: seção 4.
+  - v. Tecnologias: seção 5.
+  - vi. Camadas e pastas: seção 6 (a do backend está no README do backend).
+  - vii. Instalação, execução e acesso: seção 7.
+
