@@ -98,6 +98,13 @@ class AppIntegrationTest {
         fullFlow(AppContainer(demoMode = false, store = InMemoryKeyValueStore(), baseUrl = baseUrl))
     }
 
+    // O mesmo fluxo, sem backend: o app usa o backend simulado do modo demonstração.
+    @Test
+    fun fluxoCompletoEmModoDemonstracao() {
+        shotPrefix = "demo-"
+        fullFlow(AppContainer(demoMode = true))
+    }
+
     private fun fullFlow(container: AppContainer) {
         val email = "maya${System.currentTimeMillis()}@watchjobs.com"
         runDesktopComposeUiTest(width = 1280, height = 860) {
@@ -251,6 +258,47 @@ class AppIntegrationTest {
                 // Sair.
                 onNodeWithTag("logoutButton").performClick()
                 waitForText("Bem-vindo de volta.")
+            }
+        }
+    }
+
+    @Test
+    fun telasEmLarguraDeCelular() {
+        if (!backendIsUp()) {
+            println("Backend fora do ar em $baseUrl: teste integrado ignorado.")
+            return
+        }
+        val email = "celular${System.currentTimeMillis()}@watchjobs.com"
+        val container = AppContainer(demoMode = false, store = InMemoryKeyValueStore(), baseUrl = baseUrl)
+        runDesktopComposeUiTest(width = 412, height = 900) {
+            withFailureShot("ERRO-celular") {
+                setContent { App(container) }
+                waitForText("Bem-vindo de volta.")
+                shot("20-celular-login")
+                onNodeWithTag("goToSignup").performClick()
+                waitForText("Comece a acompanhar suas vagas.")
+                shot("21-celular-cadastro")
+            }
+        }
+        runBlocking {
+            container.authRepository.signup(SignupRequest("Leo", "Costa", LocalDate(1998, 3, 2), email, "senha1234", "senha1234"))
+            container.authRepository.signin(SigninRequest(email, "senha1234"))
+            val job = container.savedJobRepository.create(SavedJobRequest("Desenvolvedor Kotlin", "ACME Tecnologia", locationCity = "Recife", locationState = "PE", workMode = WorkMode.REMOTE, experienceLevel = ExperienceLevel.MID, jobType = JobType.CLT, salaryMin = 9000.0, salaryMax = 13000.0, salaryCurrency = "BRL", status = SavedJobStatus.SAVED))
+            container.applicationRepository.create(ApplicationRequest(job.id!!, 2, "IN_PROCESS", LocalDate(2026, 10, 14), interviewAt = LocalDateTime(2026, 10, 21, 10, 0)))
+        }
+        runDesktopComposeUiTest(width = 412, height = 900) {
+            withFailureShot("ERRO-celular") {
+                setContent { App(container) }
+                waitForText("Desenvolvedor Kotlin")
+                shot("22-celular-vagas")
+                onNodeWithTag("tab_APPLICATIONS").performClick()
+                waitForText("Toque em um cartão")
+                waitForText("Desenvolvedor Kotlin")
+                shot("23-celular-candidaturas")
+                onNodeWithText("Desenvolvedor Kotlin").performClick()
+                waitForText("Editar candidatura")
+                waitForTag("appStatus")
+                shot("24-celular-candidatura-form")
             }
         }
     }
