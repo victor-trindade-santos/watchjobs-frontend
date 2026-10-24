@@ -79,9 +79,9 @@ fun SavedJobFormScreen(
                             }
                             Panel("Detalhes") {
                                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    DropdownField("Modo de trabalho", WorkMode.entries, form.workMode, { it.label }, { v -> viewModel.update("workMode") { it.copy(workMode = v) } }, Modifier.weight(1f), tag = "jobWorkMode")
-                                    DropdownField("Nível", ExperienceLevel.entries, form.experienceLevel, { it.label }, { v -> viewModel.update("experienceLevel") { it.copy(experienceLevel = v) } }, Modifier.weight(1f), tag = "jobLevel")
-                                    DropdownField("Contrato", JobType.entries, form.jobType, { it.label }, { v -> viewModel.update("jobType") { it.copy(jobType = v) } }, Modifier.weight(1f), tag = "jobType")
+                                    DropdownField("Modo de trabalho", WorkMode.selectable, form.workMode, { it.label }, { v -> viewModel.update("workMode") { it.copy(workMode = v) } }, Modifier.weight(1f), tag = "jobWorkMode")
+                                    DropdownField("Nível", ExperienceLevel.selectable, form.experienceLevel, { it.label }, { v -> viewModel.update("experienceLevel") { it.copy(experienceLevel = v) } }, Modifier.weight(1f), tag = "jobLevel")
+                                    DropdownField("Contrato", JobType.selectable, form.jobType, { it.label }, { v -> viewModel.update("jobType") { it.copy(jobType = v) } }, Modifier.weight(1f), tag = "jobType")
                                 }
                             }
                             Panel("Salário") {
