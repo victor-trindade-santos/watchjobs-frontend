@@ -13,6 +13,7 @@ import com.watchjobs.data.remote.createHttpTransport
 import com.watchjobs.data.remote.platformDemoMode
 import com.watchjobs.data.repository.ApplicationRepository
 import com.watchjobs.data.repository.AuthRepository
+import com.watchjobs.data.repository.JobSearchQuery
 import com.watchjobs.data.repository.JobSearchRepository
 import com.watchjobs.data.repository.SavedJobRepository
 
@@ -30,4 +31,7 @@ class AppContainer(
     val savedJobRepository = SavedJobRepository(api)
     val applicationRepository = ApplicationRepository(api)
     val jobSearchRepository = JobSearchRepository(api)
+
+    // Última busca em "Buscar vagas", para voltar dos Detalhes da vaga com os mesmos filtros.
+    var jobSearchQuery = JobSearchQuery()
 }

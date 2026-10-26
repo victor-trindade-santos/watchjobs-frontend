@@ -295,7 +295,8 @@ class AppIntegrationTest {
                 waitForText("Toque em um cartão")
                 waitForText("Desenvolvedor Kotlin")
                 shot("23-celular-candidaturas")
-                onNodeWithText("Desenvolvedor Kotlin").performClick()
+                // No celular o quadro empilha as colunas; "Em processo" fica abaixo da dobra.
+                onNodeWithText("Desenvolvedor Kotlin").performScrollTo().performClick()
                 waitForText("Editar candidatura")
                 waitForTag("appStatus")
                 shot("24-celular-candidatura-form")

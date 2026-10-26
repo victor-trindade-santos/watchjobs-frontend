@@ -98,6 +98,8 @@ data class SavedJobForm(
 data class SavedJobFormState(
     val isEdit: Boolean = false,
     val form: SavedJobForm = SavedJobForm(),
+    // Vaga como veio da API, para mostrar descrição, skills e demais informações (somente leitura).
+    val job: SavedJob? = null,
     val hasApplication: Boolean = false,
     val loading: Boolean = false,
     val saving: Boolean = false,
@@ -118,7 +120,7 @@ class SavedJobFormViewModel(
             viewModelScope.launchRequest(onError = { ex -> mutableState.update { it.copy(loading = false, error = ex.generalMessage()) } }) {
                 val job = savedJobRepository.get(savedJobId)
                 val hasApplication = applicationRepository.list().any { it.savedJobId == savedJobId }
-                mutableState.update { it.copy(form = job.toForm(), hasApplication = hasApplication, loading = false) }
+                mutableState.update { it.copy(form = job.toForm(), job = job, hasApplication = hasApplication, loading = false) }
             }
         }
     }

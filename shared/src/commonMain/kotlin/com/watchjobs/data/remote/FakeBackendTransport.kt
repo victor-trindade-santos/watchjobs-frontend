@@ -76,6 +76,7 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
     private var nextApplicationId = 1
     private val corpus = mutableListOf<JobPosting>()
     private val savedFromCorpus = mutableMapOf<Pair<Int, Long>, Long>()
+    private val demoSkills = listOf(JobSkill("Kotlin"), JobSkill("SQL"), JobSkill("REST"), JobSkill("Compose", required = false))
 
     init {
         seedCorpus()
@@ -325,6 +326,12 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
             id = current.id ?: 0,
             savedAt = current.savedAt ?: now(),
             statusUpdatedAt = if (statusChanged) now() else current.statusUpdatedAt ?: now()
+        ).copy(
+            fullDescription = current.fullDescription,
+            skills = current.skills,
+            sourceName = current.sourceName,
+            roleFamily = current.roleFamily,
+            rawLocation = current.rawLocation
         )
         if (statusChanged) application?.status = request.status.name
         return ok(stored.job)
@@ -478,7 +485,7 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
         val posting = corpus.firstOrNull { it.id == id } ?: return error(404, "NOT_FOUND", "Vaga não encontrada")
         return when {
             method == "GET" && segments.size == 2 ->
-                ok(JobDetail(posting.forUser(userId), posting.descriptionSnippet, listOf(JobSkill("Kotlin"), JobSkill("SQL", required = false))))
+                ok(JobDetail(posting.forUser(userId), demoDescription(posting), demoSkills))
             method == "POST" && segments.size == 3 && segments[2] == "save" -> saveFromCorpus(userId, posting)
             else -> notFound()
         }
@@ -517,9 +524,15 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
             salaryMax = posting.salaryMax,
             salaryCurrency = posting.salaryCurrency,
             status = SavedJobStatus.SAVED,
-            notes = posting.descriptionSnippet
+            notes = null
         )
-        val job = request.toJob(nextJobId++, now, now)
+        val job = request.toJob(nextJobId++, now, now).copy(
+            fullDescription = demoDescription(posting),
+            skills = demoSkills,
+            sourceName = posting.sourceName,
+            roleFamily = posting.roleFamily,
+            rawLocation = posting.rawLocation
+        )
         jobs += StoredJob(userId, job)
         savedFromCorpus[userId to posting.id] = job.id ?: 0L
         return ok(job, 201)
@@ -530,6 +543,13 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
         val savedId = savedFromCorpus[userId to id]
         return copy(alreadySaved = savedId != null && jobs.any { it.userId == userId && it.job.id == savedId })
     }
+
+    private fun demoDescription(posting: JobPosting) =
+        "A ${posting.organizationName} está montando um time novo e procura ${posting.title}. Esta é uma vaga de demonstração. " +
+            "Responsabilidades Desenvolver e manter serviços do produto principal. Revisar código do time. " +
+            "Participar das decisões de arquitetura. Requisitos Experiência com Kotlin ou Java. " +
+            "Conhecimento de SQL e APIs REST. Diferenciais Experiência com Compose Multiplatform. " +
+            "Benefícios Plano de saúde. Vale-refeição. Auxílio home office."
 
     private fun seedCorpus() {
         fun posting(id: Long, title: String, company: String, city: String?, state: String?, raw: String, mode: WorkMode, level: ExperienceLevel?, type: JobType?, source: String, days: Int, min: Double? = null, max: Double? = null) =

@@ -15,13 +15,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.watchjobs.model.ExperienceLevel
 import com.watchjobs.model.JobType
+import com.watchjobs.model.SavedJob
 import com.watchjobs.model.SavedJobStatus
 import com.watchjobs.model.WorkMode
+import com.watchjobs.ui.jobs.JobDescriptionSections
+import com.watchjobs.ui.jobs.JobHeadline
+import com.watchjobs.ui.jobs.JobOtherInfo
+import com.watchjobs.ui.jobs.JobSkillsSection
+import com.watchjobs.util.salaryRange
+import com.watchjobs.util.toBr
 import com.watchjobs.ui.components.Breadcrumb
 import com.watchjobs.ui.components.DropdownField
 import com.watchjobs.ui.components.ErrorBanner
@@ -45,6 +53,7 @@ fun SavedJobFormScreen(
     val form = state.form
     val errors = state.fieldErrors
     val title = if (state.isEdit) "Editar vaga" else "Nova vaga"
+    val uriHandler = LocalUriHandler.current
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 20.dp)) {
         PageContainer {
@@ -65,6 +74,7 @@ fun SavedJobFormScreen(
                     val wide = maxWidth >= 860.dp
                     val main: @Composable (Modifier) -> Unit = { modifier ->
                         Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            state.job?.takeIf { it.hasContent }?.let { job -> SavedJobContent(job) }
                             Panel("A vaga") {
                                 LabeledTextField("Cargo *", form.positionRole, { v -> viewModel.update("positionRole") { it.copy(positionRole = v) } }, error = errors["positionRole"], placeholder = "Ex.: Desenvolvedor Kotlin", tag = "jobRole")
                                 LabeledTextField("Empresa *", form.organizationName, { v -> viewModel.update("organizationName") { it.copy(organizationName = v) } }, error = errors["organizationName"], tag = "jobCompany")
@@ -118,6 +128,13 @@ fun SavedJobFormScreen(
                                 }
                             }
                             PrimaryButton("Gravar", { viewModel.save(onSaved) }, Modifier.fillMaxWidth().testTag("saveButton"), loading = state.saving)
+                            form.jobUrl.takeIf { it.startsWith("http://") || it.startsWith("https://") }?.let { url ->
+                                SecondaryButton(
+                                    "Acessar página original",
+                                    { runCatching { uriHandler.openUri(url) } },
+                                    Modifier.fillMaxWidth().testTag("openJob")
+                                )
+                            }
                             SecondaryButton("Limpar Campos", viewModel::clear, Modifier.fillMaxWidth().testTag("clearButton"))
                             GhostButton("Cancelar", onCancel, Modifier.fillMaxWidth())
                         }
@@ -136,5 +153,37 @@ fun SavedJobFormScreen(
                 }
             }
         }
+    }
+}
+
+// Só as vagas salvas pela busca trazem descrição, skills e fonte; as cadastradas à mão não mostram este bloco.
+private val SavedJob.hasContent: Boolean
+    get() = !fullDescription.isNullOrBlank() || skills.isNotEmpty() || sourceName != null
+
+// Conteúdo da vaga como veio da API (somente leitura), no mesmo formato da tela Detalhes da vaga.
+@Composable
+private fun SavedJobContent(job: SavedJob) {
+    Panel("Detalhes da vaga", Modifier.testTag("savedJobContent")) {
+        JobHeadline(
+            company = job.organizationName,
+            title = job.positionRole,
+            meta = listOfNotNull(
+                listOfNotNull(job.locationCity, job.locationState).joinToString(", ").ifEmpty { job.rawLocation },
+                salaryRange(job.salaryMin, job.salaryMax, job.salaryCurrency),
+                job.workMode?.takeIf { it != WorkMode.UNKNOWN }?.label
+            )
+        )
+        JobDescriptionSections(job.fullDescription)
+        JobSkillsSection(job.skills)
+        JobOtherInfo(
+            listOf(
+                "Fonte" to job.sourceName,
+                "Área" to job.roleFamily,
+                "Local informado" to job.rawLocation,
+                "Nível" to job.experienceLevel?.takeIf { it != ExperienceLevel.UNKNOWN }?.label,
+                "Contrato" to job.jobType?.takeIf { it != JobType.UNKNOWN }?.label,
+                "Salva em" to job.savedAt?.toBr()
+            )
+        )
     }
 }

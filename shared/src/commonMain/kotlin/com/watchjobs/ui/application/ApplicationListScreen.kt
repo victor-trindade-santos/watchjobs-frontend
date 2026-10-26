@@ -36,7 +36,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.watchjobs.model.Application
+import com.watchjobs.model.SavedJob
 import com.watchjobs.model.SavedJobStatus
+import com.watchjobs.model.WorkMode
 import com.watchjobs.ui.components.ConfirmDialog
 import com.watchjobs.ui.components.EmptyState
 import com.watchjobs.ui.components.ErrorBanner
@@ -50,6 +52,7 @@ import com.watchjobs.ui.components.SearchBar
 import com.watchjobs.ui.components.SectionHint
 import com.watchjobs.ui.components.SectionLabel
 import com.watchjobs.ui.theme.WatchJobsColors
+import com.watchjobs.util.toBr
 import com.watchjobs.util.toShortWeekday
 import com.watchjobs.viewmodel.ApplicationListViewModel
 
@@ -68,6 +71,7 @@ fun ApplicationListScreen(
     viewModel: ApplicationListViewModel,
     onNew: () -> Unit,
     onEdit: (Int) -> Unit,
+    onOpenSavedJob: (Long) -> Unit,
     showMessage: (String) -> Unit
 ) {
     val state by viewModel.state.collectAsState()
@@ -85,10 +89,12 @@ fun ApplicationListScreen(
                 }
                 SectionHint(
                     "Candidatura é o processo seletivo de uma vaga salva: etapa, status, entrevistas e feedback. " +
-                        "Cada vaga tem no máximo uma candidatura, e o status escolhido aqui também atualiza a vaga."
+                        "Cada vaga tem no máximo uma candidatura, e o status escolhido aqui também atualiza a vaga. " +
+                        "A coluna Vagas salvas mostra as vagas que ainda não têm candidatura."
                 )
                 KpiStrip(
                     listOf(
+                        Triple("Vagas salvas", state.savedJobs.size.toString(), null),
                         Triple("Candidaturas", state.items.size.toString(), null),
                         Triple("Em processo", inProcess.toString(), null),
                         Triple("Entrevistas", withInterview.toString(), "marcadas"),
@@ -102,14 +108,14 @@ fun ApplicationListScreen(
                 )
                 state.error?.let { ErrorBanner(it) }
                 when {
-                    state.loading && state.items.isEmpty() -> LoadingBox()
-                    state.items.isEmpty() -> EmptyState(
+                    state.loading && state.items.isEmpty() && state.savedJobs.isEmpty() -> LoadingBox()
+                    state.items.isEmpty() && state.savedJobs.isEmpty() -> EmptyState(
                         title = if (state.query.isBlank()) "Nenhuma candidatura ainda" else "Nada encontrado",
                         message = if (state.query.isBlank()) "Quando se candidatar a uma vaga salva, registre aqui." else "Nenhuma candidatura com \"${state.query}\"."
                     ) {
                         if (state.query.isBlank()) PrimaryButton("+ Nova candidatura", onNew)
                     }
-                    else -> Board(state.items, onEdit, viewModel::requestDelete)
+                    else -> Board(state.items, state.savedJobs, onEdit, onOpenSavedJob, viewModel::requestDelete)
                 }
             }
         }
@@ -127,26 +133,45 @@ fun ApplicationListScreen(
 }
 
 @Composable
-private fun Board(items: List<Application>, onEdit: (Int) -> Unit, onDelete: (Application) -> Unit) {
+private fun Board(
+    items: List<Application>,
+    savedJobs: List<SavedJob>,
+    onEdit: (Int) -> Unit,
+    onOpenSavedJob: (Long) -> Unit,
+    onDelete: (Application) -> Unit
+) {
+    // Primeira coluna: vagas salvas ainda sem candidatura; o clique abre a tela Editar vaga.
+    val columns = buildList<@Composable (Modifier) -> Unit> {
+        add { modifier ->
+            BoardColumnContent("Vagas salvas", false, savedJobs.size, modifier) {
+                savedJobs.forEach { job -> SavedJobCard(job) { job.id?.let(onOpenSavedJob) } }
+            }
+        }
+        boardColumns.forEach { column ->
+            val cards = items.filter { item -> column.statuses.any { it.name == item.status } }
+            add { modifier ->
+                BoardColumnContent(column.title, column.highlighted, cards.size, modifier) {
+                    cards.forEach { application ->
+                        ApplicationCard(application, { application.id?.let(onEdit) }, { onDelete(application) })
+                    }
+                }
+            }
+        }
+    }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         if (maxWidth < 600.dp) {
             // No celular, as colunas viram seções empilhadas.
             Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                boardColumns.forEach { column ->
-                    BoardColumnContent(column, items, onEdit, onDelete, Modifier.fillMaxWidth())
-                }
+                columns.forEach { column -> column(Modifier.fillMaxWidth()) }
             }
             return@BoxWithConstraints
         }
-        val fits = maxWidth >= 900.dp
+        val fits = maxWidth >= 1100.dp
         val rowModifier = if (fits) Modifier.fillMaxWidth() else Modifier.horizontalScroll(rememberScrollState())
         Row(rowModifier.height(IntrinsicSize.Min).border(1.dp, WatchJobsColors.Border).background(WatchJobsColors.Background)) {
-            boardColumns.forEachIndexed { index, column ->
+            columns.forEachIndexed { index, column ->
                 if (index > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(WatchJobsColors.Border))
-                BoardColumnContent(
-                    column, items, onEdit, onDelete,
-                    (if (fits) Modifier.weight(1f) else Modifier.width(270.dp)).padding(14.dp)
-                )
+                column((if (fits) Modifier.weight(1f) else Modifier.width(250.dp)).padding(14.dp))
             }
         }
     }
@@ -154,27 +179,64 @@ private fun Board(items: List<Application>, onEdit: (Int) -> Unit, onDelete: (Ap
 
 @Composable
 private fun BoardColumnContent(
-    column: BoardColumn,
-    items: List<Application>,
-    onEdit: (Int) -> Unit,
-    onDelete: (Application) -> Unit,
-    modifier: Modifier
+    title: String,
+    highlighted: Boolean,
+    count: Int,
+    modifier: Modifier,
+    cards: @Composable () -> Unit
 ) {
-    val cards = items.filter { item -> column.statuses.any { it.name == item.status } }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                SectionLabel(column.title, Modifier.weight(1f))
-                Text(cards.size.toString(), style = MaterialTheme.typography.labelMedium, color = WatchJobsColors.Muted)
+                SectionLabel(title, Modifier.weight(1f))
+                Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = WatchJobsColors.Muted)
             }
             Spacer(Modifier.height(8.dp))
-            Box(Modifier.fillMaxWidth().height(2.dp).background(if (column.highlighted) WatchJobsColors.Red else WatchJobsColors.Border))
+            Box(Modifier.fillMaxWidth().height(2.dp).background(if (highlighted) WatchJobsColors.Red else WatchJobsColors.Border))
         }
-        cards.forEach { application ->
-            ApplicationCard(application, { application.id?.let(onEdit) }, { onDelete(application) })
-        }
-        if (cards.isEmpty()) {
+        cards()
+        if (count == 0) {
             Text("Nenhuma", style = MaterialTheme.typography.bodySmall, color = WatchJobsColors.Muted)
+        }
+    }
+}
+
+// Cartão de vaga salva sem candidatura: empresa, cargo, status e local.
+@Composable
+private fun SavedJobCard(job: SavedJob, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(WatchJobsColors.Surface)
+            .border(1.dp, WatchJobsColors.Border)
+            .clickable(onClick = onClick)
+            .padding(12.dp)
+            .testTag("savedJobCard"),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            job.organizationName,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Bold,
+            color = WatchJobsColors.Muted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(job.positionRole, style = MaterialTheme.typography.titleMedium, color = WatchJobsColors.Ink)
+        Text(job.status.label, style = MaterialTheme.typography.bodySmall, color = WatchJobsColors.Muted)
+        Hairline(Modifier.padding(top = 2.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                listOfNotNull(job.locationCity, job.workMode?.takeIf { it != WorkMode.UNKNOWN }?.label).joinToString(" · ").ifEmpty { "—" },
+                style = MaterialTheme.typography.bodySmall,
+                color = WatchJobsColors.Muted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            job.savedAt?.let {
+                Text(it.date.toBr(), style = MaterialTheme.typography.bodySmall, color = WatchJobsColors.Muted)
+            }
         }
     }
 }

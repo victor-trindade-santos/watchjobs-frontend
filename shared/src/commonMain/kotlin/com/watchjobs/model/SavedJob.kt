@@ -21,5 +21,11 @@ data class SavedJob(
     val status: SavedJobStatus = SavedJobStatus.SAVED,
     val notes: String? = null,
     val savedAt: LocalDateTime? = null,
-    val statusUpdatedAt: LocalDateTime? = null
+    val statusUpdatedAt: LocalDateTime? = null,
+    // Conteúdo copiado da vaga ao salvar pela busca (só no GET /saved-jobs/{id}).
+    val fullDescription: String? = null,
+    val skills: List<JobSkill> = emptyList(),
+    val sourceName: String? = null,
+    val roleFamily: String? = null,
+    val rawLocation: String? = null
 )

@@ -6,6 +6,7 @@ import com.watchjobs.data.remote.ApiException
 import com.watchjobs.data.repository.JobSearchQuery
 import com.watchjobs.data.repository.JobSearchRepository
 import com.watchjobs.model.ExperienceLevel
+import com.watchjobs.model.JobDetail
 import com.watchjobs.model.JobPosting
 import com.watchjobs.model.JobType
 import com.watchjobs.model.WorkMode
@@ -30,8 +31,12 @@ data class JobSearchState(
         get() = items.size < total
 }
 
-class JobSearchViewModel(private val repository: JobSearchRepository) : ViewModel() {
-    private val mutableState = MutableStateFlow(JobSearchState())
+class JobSearchViewModel(
+    private val repository: JobSearchRepository,
+    initialQuery: JobSearchQuery = JobSearchQuery(),
+    private val onQueryChanged: (JobSearchQuery) -> Unit = {}
+) : ViewModel() {
+    private val mutableState = MutableStateFlow(JobSearchState(query = initialQuery))
     val state: StateFlow<JobSearchState> = mutableState.asStateFlow()
     private var searchJob: Job? = null
 
@@ -50,8 +55,12 @@ class JobSearchViewModel(private val repository: JobSearchRepository) : ViewMode
 
     fun onJobTypeChange(value: JobType?) = updateQuery { it.copy(jobType = value) }
 
+    // Mantém o texto da busca e limpa só os filtros da lateral.
+    fun resetFilters() = updateQuery { JobSearchQuery(text = it.text) }
+
     private fun updateQuery(debounce: Boolean = false, change: (JobSearchQuery) -> JobSearchQuery) {
         mutableState.update { it.copy(query = change(it.query)) }
+        onQueryChanged(state.value.query)
         search(debounce)
     }
 
@@ -106,4 +115,44 @@ class JobSearchViewModel(private val repository: JobSearchRepository) : ViewMode
 
     private fun showError(ex: Throwable) =
         mutableState.update { it.copy(loading = false, loadingMore = false, error = ex.generalMessage()) }
+}
+
+data class JobDetailState(
+    val detail: JobDetail? = null,
+    val loading: Boolean = true,
+    val saving: Boolean = false,
+    val savedJobId: Long? = null,
+    val error: String? = null
+)
+
+// Detalhes da vaga do corpus, exibidos dentro do WatchJobs (GET /jobs/{id}).
+class JobDetailViewModel(private val id: Long, private val repository: JobSearchRepository) : ViewModel() {
+    private val mutableState = MutableStateFlow(JobDetailState())
+    val state: StateFlow<JobDetailState> = mutableState.asStateFlow()
+
+    init {
+        viewModelScope.launchRequest(onError = { ex -> mutableState.update { it.copy(loading = false, error = ex.generalMessage()) } }) {
+            val detail = repository.detail(id)
+            mutableState.update { it.copy(detail = detail, loading = false) }
+        }
+    }
+
+    fun save(showMessage: (String) -> Unit) {
+        val current = state.value
+        if (current.saving || current.detail?.job?.alreadySaved != false) return
+        mutableState.update { it.copy(saving = true) }
+        viewModelScope.launchRequest(onError = { ex ->
+            val conflict = ex is ApiException && ex.status == 409
+            mutableState.update { state ->
+                state.copy(saving = false, detail = if (conflict) state.detail?.markSaved() else state.detail)
+            }
+            showMessage(if (conflict) "Você já salvou esta vaga" else ex.generalMessage())
+        }) {
+            val saved = repository.save(id)
+            mutableState.update { it.copy(saving = false, savedJobId = saved.id, detail = it.detail?.markSaved()) }
+            showMessage("Vaga salva. Ela está em Vagas salvas e no quadro de Candidaturas.")
+        }
+    }
+
+    private fun JobDetail.markSaved() = copy(job = job.copy(alreadySaved = true))
 }

@@ -34,6 +34,7 @@ import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.watchjobs.data.remote.FakeBackendTransport
+import com.watchjobs.data.repository.JobSearchQuery
 import com.watchjobs.ui.application.ApplicationFormScreen
 import com.watchjobs.ui.application.ApplicationListScreen
 import com.watchjobs.ui.auth.DeleteAccountDialog
@@ -42,6 +43,7 @@ import com.watchjobs.ui.auth.LoginScreen
 import com.watchjobs.ui.auth.SignupScreen
 import com.watchjobs.ui.components.MainScaffold
 import com.watchjobs.ui.components.MainTab
+import com.watchjobs.ui.jobs.JobDetailScreen
 import com.watchjobs.ui.jobs.JobSearchScreen
 import com.watchjobs.ui.savedjob.SavedJobFormScreen
 import com.watchjobs.ui.savedjob.SavedJobListScreen
@@ -51,6 +53,7 @@ import com.watchjobs.viewmodel.DeleteAccountViewModel
 import com.watchjobs.viewmodel.ForgotPasswordViewModel
 import com.watchjobs.viewmodel.ApplicationFormViewModel
 import com.watchjobs.viewmodel.ApplicationListViewModel
+import com.watchjobs.viewmodel.JobDetailViewModel
 import com.watchjobs.viewmodel.JobSearchViewModel
 import com.watchjobs.viewmodel.LoginViewModel
 import com.watchjobs.viewmodel.SavedJobFormViewModel
@@ -68,6 +71,7 @@ sealed interface Screen {
     data object Applications : Screen
     data class ApplicationForm(val id: Int? = null, val savedJobId: Long? = null) : Screen
     data object JobSearch : Screen
+    data class JobDetail(val id: Long) : Screen
 }
 
 @Composable
@@ -136,7 +140,7 @@ private fun AppScreen(
             initials = container.authRepository.currentUser()?.initials ?: "?",
             currentTab = when (current) {
                 is Screen.Applications, is Screen.ApplicationForm -> MainTab.APPLICATIONS
-                is Screen.JobSearch -> MainTab.JOB_SEARCH
+                is Screen.JobSearch, is Screen.JobDetail -> MainTab.JOB_SEARCH
                 else -> MainTab.SAVED_JOBS
             },
             onTabSelected = { tab ->
@@ -150,6 +154,7 @@ private fun AppScreen(
             onLogout = {
                 scope.launch {
                     container.authRepository.logout()
+                    container.jobSearchQuery = JobSearchQuery()
                     navigate(Screen.Login(), "Você saiu da conta.")
                 }
             },
@@ -171,9 +176,10 @@ private fun AppScreen(
                     onCancel = { navigate(Screen.SavedJobs, null) }
                 )
                 Screen.Applications -> ApplicationListScreen(
-                    viewModel = viewModel { ApplicationListViewModel(container.applicationRepository) },
+                    viewModel = viewModel { ApplicationListViewModel(container.applicationRepository, container.savedJobRepository) },
                     onNew = { navigate(Screen.ApplicationForm(), null) },
                     onEdit = { id -> navigate(Screen.ApplicationForm(id), null) },
+                    onOpenSavedJob = { id -> navigate(Screen.SavedJobForm(id), null) },
                     showMessage = { message -> navigate(Screen.Applications, message) }
                 )
                 is Screen.ApplicationForm -> ApplicationFormScreen(
@@ -185,8 +191,17 @@ private fun AppScreen(
                     onNewSavedJob = { navigate(Screen.SavedJobForm(), null) }
                 )
                 Screen.JobSearch -> JobSearchScreen(
-                    viewModel = viewModel { JobSearchViewModel(container.jobSearchRepository) },
+                    viewModel = viewModel {
+                        JobSearchViewModel(container.jobSearchRepository, container.jobSearchQuery) { container.jobSearchQuery = it }
+                    },
+                    onView = { id -> navigate(Screen.JobDetail(id), null) },
                     showMessage = { message -> navigate(Screen.JobSearch, message) }
+                )
+                is Screen.JobDetail -> JobDetailScreen(
+                    viewModel = viewModel { JobDetailViewModel(current.id, container.jobSearchRepository) },
+                    onBack = { navigate(Screen.JobSearch, null) },
+                    onOpenSaved = { savedId -> navigate(savedId?.let { Screen.SavedJobForm(it) } ?: Screen.SavedJobs, null) },
+                    showMessage = { message -> navigate(current, message) }
                 )
                 else -> Unit
             }

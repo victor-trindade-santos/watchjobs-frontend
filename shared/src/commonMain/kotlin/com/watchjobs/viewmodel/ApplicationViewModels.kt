@@ -23,12 +23,17 @@ import kotlinx.coroutines.flow.update
 data class ApplicationListState(
     val query: String = "",
     val items: List<Application> = emptyList(),
+    // Vagas salvas que ainda não têm candidatura (coluna "Vagas salvas" do quadro).
+    val savedJobs: List<SavedJob> = emptyList(),
     val loading: Boolean = true,
     val error: String? = null,
     val pendingDelete: Application? = null
 )
 
-class ApplicationListViewModel(private val applicationRepository: ApplicationRepository) : ViewModel() {
+class ApplicationListViewModel(
+    private val applicationRepository: ApplicationRepository,
+    private val savedJobRepository: SavedJobRepository
+) : ViewModel() {
     private val mutableState = MutableStateFlow(ApplicationListState())
     val state: StateFlow<ApplicationListState> = mutableState.asStateFlow()
     private var searchJob: Job? = null
@@ -53,8 +58,11 @@ class ApplicationListViewModel(private val applicationRepository: ApplicationRep
     }
 
     private suspend fun reload() {
-        val items = applicationRepository.list(state.value.query)
-        mutableState.update { it.copy(items = items, loading = false, error = null) }
+        val query = state.value.query
+        val items = applicationRepository.list(query)
+        // SAVED e PLANNING_TO_APPLY são justamente os status de vaga sem candidatura.
+        val savedJobs = savedJobRepository.list(query).filter { it.status in SAVED_ONLY_STATUSES }
+        mutableState.update { it.copy(items = items, savedJobs = savedJobs, loading = false, error = null) }
     }
 
     fun requestDelete(application: Application) = mutableState.update { it.copy(pendingDelete = application) }
@@ -72,6 +80,10 @@ class ApplicationListViewModel(private val applicationRepository: ApplicationRep
     }
 
     private fun showError(ex: Throwable) = mutableState.update { it.copy(loading = false, error = ex.generalMessage()) }
+
+    private companion object {
+        val SAVED_ONLY_STATUSES = setOf(SavedJobStatus.SAVED, SavedJobStatus.PLANNING_TO_APPLY)
+    }
 }
 
 data class ApplicationForm(

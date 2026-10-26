@@ -2,7 +2,9 @@ package com.watchjobs.ui.jobs
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -10,14 +12,18 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,7 +31,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -37,9 +42,9 @@ import com.watchjobs.model.ExperienceLevel
 import com.watchjobs.model.JobPosting
 import com.watchjobs.model.JobType
 import com.watchjobs.model.WorkMode
-import com.watchjobs.ui.components.DropdownField
 import com.watchjobs.ui.components.EmptyState
 import com.watchjobs.ui.components.ErrorBanner
+import com.watchjobs.ui.components.Hairline
 import com.watchjobs.ui.components.LabeledTextField
 import com.watchjobs.ui.components.LoadingBox
 import com.watchjobs.ui.components.PageHeader
@@ -47,25 +52,56 @@ import com.watchjobs.ui.components.PrimaryButton
 import com.watchjobs.ui.components.SearchBar
 import com.watchjobs.ui.components.SecondaryButton
 import com.watchjobs.ui.components.SectionHint
+import com.watchjobs.ui.components.SectionLabel
 import com.watchjobs.ui.components.Tag
 import com.watchjobs.ui.theme.WatchJobsColors
 import com.watchjobs.util.salaryRange
 import com.watchjobs.viewmodel.JobSearchViewModel
 
-private val pageWidth = 1200.dp
+private val pageWidth = 1000.dp
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun JobSearchScreen(
     viewModel: JobSearchViewModel,
+    onView: (Long) -> Unit,
     showMessage: (String) -> Unit
 ) {
+    // Telas largas: filtros fixos na lateral esquerda. Telas estreitas: filtros no topo da lista.
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        if (maxWidth >= 900.dp) {
+            Row(Modifier.fillMaxSize()) {
+                Column(
+                    Modifier
+                        .width(280.dp)
+                        .fillMaxHeight()
+                        .background(WatchJobsColors.White)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 22.dp, vertical = 28.dp)
+                        .testTag("jobSearchFilters")
+                ) {
+                    JobFilters(viewModel)
+                }
+                Box(Modifier.width(1.dp).fillMaxHeight().background(WatchJobsColors.Divider))
+                JobResults(viewModel, onView, showMessage, filtersInline = false, modifier = Modifier.weight(1f))
+            }
+        } else {
+            JobResults(viewModel, onView, showMessage, filtersInline = true, modifier = Modifier.fillMaxSize())
+        }
+    }
+}
+
+@Composable
+private fun JobResults(
+    viewModel: JobSearchViewModel,
+    onView: (Long) -> Unit,
+    showMessage: (String) -> Unit,
+    filtersInline: Boolean,
+    modifier: Modifier
+) {
     val state by viewModel.state.collectAsState()
-    val query = state.query
-    val uriHandler = LocalUriHandler.current
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier,
         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -77,57 +113,19 @@ fun JobSearchScreen(
                 )
                 SectionHint(
                     "As vagas vêm das fontes coletadas pelo WatchJobs e ficam aqui por 30 dias a partir da descoberta. " +
-                        "Para guardar uma vaga por mais tempo, use \"Salvar\": ela vai para Vagas salvas e não expira."
+                        "Use \"Visualizar\" para ler a vaga completa e \"Salvar\" para guardá-la em Vagas salvas, onde ela não expira."
                 )
                 SearchBar(
-                    value = query.text,
+                    value = state.query.text,
                     onValueChange = viewModel::onTextChange,
                     placeholder = "Cargo ou empresa (ex.: \"engineer\", \"kotlin\", \"vtex\")"
                 )
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    maxItemsInEachRow = 4
-                ) {
-                    val field = Modifier.widthIn(min = 180.dp).weight(1f)
-                    LabeledTextField(
-                        label = "Local",
-                        value = query.location,
-                        onValueChange = viewModel::onLocationChange,
-                        placeholder = "Cidade, estado ou país",
-                        modifier = field,
-                        tag = "jobSearchLocation"
-                    )
-                    DropdownField(
-                        label = "Modo",
-                        options = WorkMode.selectable,
-                        selected = query.workMode,
-                        optionLabel = { it.label },
-                        onSelect = viewModel::onWorkModeChange,
-                        emptyLabel = "Todos",
-                        modifier = field,
-                        tag = "jobSearchWorkMode"
-                    )
-                    DropdownField(
-                        label = "Nível",
-                        options = ExperienceLevel.selectable,
-                        selected = query.level,
-                        optionLabel = { it.label },
-                        onSelect = viewModel::onLevelChange,
-                        emptyLabel = "Todos",
-                        modifier = field,
-                        tag = "jobSearchLevel"
-                    )
-                    DropdownField(
-                        label = "Contrato",
-                        options = JobType.selectable,
-                        selected = query.jobType,
-                        optionLabel = { it.label },
-                        onSelect = viewModel::onJobTypeChange,
-                        emptyLabel = "Todos",
-                        modifier = field,
-                        tag = "jobSearchJobType"
-                    )
+                if (filtersInline) {
+                    Column(
+                        Modifier.fillMaxWidth().background(WatchJobsColors.White).border(1.dp, WatchJobsColors.Border).padding(18.dp)
+                    ) {
+                        JobFilters(viewModel)
+                    }
                 }
                 state.error?.let { ErrorBanner(it) }
                 Spacer(Modifier.height(4.dp))
@@ -147,10 +145,7 @@ fun JobSearchScreen(
                     JobPostingCard(
                         job = job,
                         saving = job.id in state.savingIds,
-                        onOpen = {
-                            runCatching { uriHandler.openUri(job.jobUrl) }
-                                .onFailure { showMessage("Não foi possível abrir o link da vaga.") }
-                        },
+                        onView = { onView(job.id) },
                         onSave = { viewModel.save(job, showMessage) },
                         modifier = Modifier.widthIn(max = pageWidth).padding(bottom = 12.dp)
                     )
@@ -170,13 +165,96 @@ fun JobSearchScreen(
     }
 }
 
+// Filtros da busca, no estilo do painel "FILTERS" do protótipo: local, modo (lista única), nível e contrato (etiquetas).
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun JobFilters(viewModel: JobSearchViewModel) {
+    val state by viewModel.state.collectAsState()
+    val query = state.query
+    Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
+        Text("FILTROS", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.ExtraBold, color = WatchJobsColors.Ink)
+        LabeledTextField(
+            label = "Local",
+            value = query.location,
+            onValueChange = viewModel::onLocationChange,
+            placeholder = "Cidade, estado ou país",
+            tag = "jobSearchLocation"
+        )
+        FilterGroup("Modo de trabalho") {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                RadioOption("Qualquer", query.workMode == null, "workMode_ANY") { viewModel.onWorkModeChange(null) }
+                WorkMode.selectable.forEach { mode ->
+                    RadioOption(mode.label, query.workMode == mode, "workMode_${mode.name}") { viewModel.onWorkModeChange(mode) }
+                }
+            }
+        }
+        FilterGroup("Nível") {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                ExperienceLevel.selectable.forEach { level ->
+                    val selected = query.level == level
+                    ChoiceChip(level.label, selected, "level_${level.name}") { viewModel.onLevelChange(if (selected) null else level) }
+                }
+            }
+        }
+        FilterGroup("Contrato") {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                JobType.selectable.forEach { type ->
+                    val selected = query.jobType == type
+                    ChoiceChip(type.label, selected, "jobType_${type.name}") { viewModel.onJobTypeChange(if (selected) null else type) }
+                }
+            }
+        }
+        Hairline()
+        SecondaryButton("Limpar filtros", viewModel::resetFilters, Modifier.fillMaxWidth().testTag("resetFilters"))
+    }
+}
+
+@Composable
+private fun FilterGroup(title: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionLabel(title, color = WatchJobsColors.Muted)
+        content()
+    }
+}
+
+@Composable
+private fun RadioOption(text: String, selected: Boolean, tag: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).testTag(tag),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(14.dp).border(1.dp, if (selected) WatchJobsColors.Red else WatchJobsColors.Border).background(WatchJobsColors.White),
+            contentAlignment = Alignment.Center
+        ) {
+            if (selected) Box(Modifier.size(8.dp).background(WatchJobsColors.Red))
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = WatchJobsColors.Ink)
+    }
+}
+
+@Composable
+private fun ChoiceChip(text: String, selected: Boolean, tag: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .background(if (selected) WatchJobsColors.Ink else WatchJobsColors.White)
+            .border(1.dp, if (selected) WatchJobsColors.Ink else WatchJobsColors.Border)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .testTag(tag)
+    ) {
+        Text(text, style = MaterialTheme.typography.bodySmall, color = if (selected) WatchJobsColors.White else WatchJobsColors.Ink)
+    }
+}
+
 // Cartão no estilo das vagas salvas: empresa, local e fonte em cima; cargo em destaque; etiquetas e ações.
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun JobPostingCard(
     job: JobPosting,
     saving: Boolean,
-    onOpen: () -> Unit,
+    onView: () -> Unit,
     onSave: () -> Unit,
     modifier: Modifier
 ) {
@@ -222,12 +300,15 @@ private fun JobPostingCard(
         }
         val actions: @Composable () -> Unit = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                SecondaryButton("Ver vaga", onOpen, modifier = Modifier.testTag("openJob"))
-                PrimaryButton(
-                    if (job.alreadySaved) "Salva" else "Salvar",
+                PrimaryButton("Visualizar", onView, modifier = Modifier.testTag("viewJob"))
+                SecondaryButton(
+                    when {
+                        job.alreadySaved -> "Salva"
+                        saving -> "Salvando..."
+                        else -> "Salvar"
+                    },
                     onSave,
-                    enabled = !job.alreadySaved,
-                    loading = saving,
+                    enabled = !job.alreadySaved && !saving,
                     modifier = Modifier.testTag("saveJob")
                 )
             }
