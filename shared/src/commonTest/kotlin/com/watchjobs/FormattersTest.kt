@@ -41,13 +41,21 @@ class FormattersTest {
         assertNull(parseMoney("abc"))
         assertNull(parseMoney(""))
         assertEquals("8000,50", 8000.5.toInput())
+        assertEquals("8000", 8000.0.toInput())
+    }
+
     @Test
-    fun parsesAndFormatsMoney() {
-        assertEquals(8000.0, parseMoney("8000"))
-        assertEquals(8000.0, parseMoney("8.000"))
-        assertEquals(8000.5, parseMoney("8.000,50"))
-        assertEquals(8000.5, parseMoney("8000,5"))
-        assertEquals(1234.56, parseMoney("1234.56"))
-        assertNull(parseMoney("abc"))
-        assertNull(parseMoney(""))
-        assertEquals("8000,50", 8000.5.toInput())
+    fun formatsSalaryRange() {
+        assertEquals("R$ 5.000–8.000", salaryRange(5000.0, 8000.0, "BRL"))
+        assertEquals("a partir de US$ 5.000", salaryRange(5000.0, null, "USD"))
+        assertEquals("até € 8.000,50", salaryRange(null, 8000.5, "EUR"))
+        assertNull(salaryRange(null, null, null))
+    }
+
+    @Test
+    fun encodesSearchQuery() {
+        assertEquals("kotlin", encodeQuery("kotlin"))
+        assertEquals("dev%20j%C3%BAnior", encodeQuery("dev júnior"))
+        assertEquals("a%26b", encodeQuery("a&b"))
+    }
+}

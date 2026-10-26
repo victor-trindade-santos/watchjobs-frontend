@@ -51,6 +51,7 @@ fun MainScaffold(
     currentTab: MainTab,
     onTabSelected: (MainTab) -> Unit,
     onLogout: () -> Unit,
+    onDeleteAccount: () -> Unit = {},
     content: @Composable ColumnScope.() -> Unit
 ) {
     Column(Modifier.fillMaxSize().background(WatchJobsColors.Background)) {
@@ -74,6 +75,7 @@ fun MainScaffold(
                         Text(initials, style = MaterialTheme.typography.labelLarge, color = WatchJobsColors.White)
                     }
                     Spacer(Modifier.width(10.dp))
+                    GhostButton("Excluir", onDeleteAccount, modifier = Modifier.testTag("deleteAccountButton"))
                     GhostButton("Sair", onLogout, modifier = Modifier.testTag("logoutButton"))
                 }
                 if (compact) {

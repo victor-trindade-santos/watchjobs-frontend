@@ -3,6 +3,12 @@ package com.watchjobs.data.remote
 import com.watchjobs.data.dto.ApiError
 import com.watchjobs.data.dto.ApplicationRequest
 import com.watchjobs.data.dto.AuthResponse
+import com.watchjobs.data.dto.DeleteAccountRequest
+import com.watchjobs.data.dto.DemoForgotResponse
+import com.watchjobs.data.dto.ForgotPasswordRequest
+import com.watchjobs.data.dto.LogoutRequest
+import com.watchjobs.data.dto.RefreshRequest
+import com.watchjobs.data.dto.ResetPasswordRequest
 import com.watchjobs.data.dto.SavedJobRequest
 import com.watchjobs.data.dto.SigninRequest
 import com.watchjobs.data.dto.SignupRequest
@@ -25,6 +31,7 @@ import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.encodeToString
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 
@@ -32,7 +39,8 @@ import kotlin.time.Duration.Companion.minutes
 // Atende as mesmas rotas do backend, com as mesmas validações, regras de status e mensagens de erro.
 // Os dados somem ao fechar o app.
 class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
-    private class StoredUser(val user: User, val password: String)
+    private class StoredUser(val user: User, var password: String, var generation: Int = 1)
+    private class ResetCode(val code: String, var attempts: Int = 0)
     private class StoredJob(val userId: Int, var job: SavedJob)
     private class StoredApplication(
         val id: Int,
@@ -51,6 +59,9 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
 
     private val json = ApiJson
     private val mutex = Mutex()
+    private val refreshTokens = mutableMapOf<String, Int>()
+    private val resetCodes = mutableMapOf<String, ResetCode>()
+    private var nextRefresh = 1
     private val users = mutableListOf<StoredUser>()
     private val jobs = mutableListOf<StoredJob>()
     private val applications = mutableListOf<StoredApplication>()
@@ -87,13 +98,21 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
         when {
             method == "POST" && path == "/signup" -> return signup(decode(body))
             method == "POST" && path == "/signin" -> return signin(decode(body))
+            method == "POST" && path == "/auth/refresh" -> return refresh(decode(body))
+            method == "POST" && path == "/password/forgot" -> return forgot(decode(body))
+            method == "POST" && path == "/password/reset" -> return reset(decode(body))
         }
 
         val user = authenticatedUser(headers)
             ?: return error(401, "UNAUTHORIZED", "Não autenticado")
 
         return when (segments.firstOrNull()) {
-            "me" -> if (method == "GET" && segments.size == 1) ok(user) else notFound()
+            "me" -> when {
+                method == "GET" && segments.size == 1 -> ok(user)
+                method == "DELETE" && segments.size == 1 -> deleteAccount(user, decode(body))
+                else -> notFound()
+            }
+            "auth" -> if (method == "POST" && segments.getOrNull(1) == "logout") logout(user, decode(body)) else notFound()
             "application-stages" -> if (method == "GET") ok(stages.filter { query.isNullOrBlank() || it.name.contains(query.trim(), true) }) else notFound()
             "saved-jobs" -> savedJobs(method, segments.getOrNull(1), user.id, query, body)
             "applications" -> applicationsRoute(method, segments.getOrNull(1), user.id, query, body)
@@ -139,13 +158,90 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
 
         val stored = users.firstOrNull { it.user.email == request.email.trim().lowercase() && it.password == request.password }
             ?: return error(401, "INVALID_CREDENTIALS", "E-mail ou senha inválidos")
+        return ok(issueAuth(stored))
+    }
+
+    private fun refresh(request: RefreshRequest): HttpResult {
+        val userId = refreshTokens.remove(request.refreshToken) ?: return error(401, "INVALID_CREDENTIALS", "Refresh token inválido ou expirado")
+        val stored = users.firstOrNull { it.user.id == userId } ?: return error(401, "INVALID_CREDENTIALS", "Refresh token inválido ou expirado")
+        return ok(issueAuth(stored))
+    }
+
+    private fun logout(user: User, request: LogoutRequest): HttpResult {
+        val owner = refreshTokens[request.refreshToken]
+        if (owner != user.id) return error(401, "INVALID_CREDENTIALS", "Refresh token inválido ou expirado")
+        refreshTokens.remove(request.refreshToken)
+        return HttpResult(204, "")
+    }
+
+    private fun forgot(request: ForgotPasswordRequest): HttpResult {
+        val email = request.email.trim().lowercase()
+        if (email.isBlank() || !EMAIL.matches(email)) {
+            throw Fail(error(400, "VALIDATION_ERROR", "Dados inválidos"))
+        }
+        val stored = users.firstOrNull { it.user.email == email } ?: return HttpResult(202, "")
+        val code = "%06d".format((100000..999999).random())
+        resetCodes[email] = ResetCode(code)
+        return HttpResult(202, json.encodeToString(DemoForgotResponse(code)))
+    }
+
+    private fun reset(request: ResetPasswordRequest): HttpResult {
+        Checks().apply {
+            check("code", request.code.length == 6 && request.code.all { it.isDigit() }, "Código deve ter 6 dígitos")
+            check("newPassword", request.newPassword.length in 8..255, "Senha deve ter entre 8 e 255 caracteres")
+            check("newPassword", PASSWORD.matches(request.newPassword), "Senha deve conter pelo menos uma letra e um número")
+            check("confirmPassword", request.confirmPassword.isNotBlank(), "Confirmação de senha é obrigatória")
+        }.throwIfAny()
+        if (request.newPassword != request.confirmPassword) {
+            throw Fail(error(400, "BUSINESS_RULE", "A senha e a confirmação de senha não coincidem"))
+        }
+        val email = request.email.trim().lowercase()
+        val stored = users.firstOrNull { it.user.email == email }
+        val reset = resetCodes[email]
+        if (stored == null || reset == null || reset.attempts >= 5 || reset.code != request.code) {
+            reset?.let { it.attempts += 1 }
+            throw Fail(error(400, "BUSINESS_RULE", "Código inválido ou expirado"))
+        }
+        stored.password = request.newPassword
+        stored.generation += 1
+        refreshTokens.entries.removeAll { it.value == stored.user.id }
+        resetCodes.remove(email)
+        return HttpResult(204, "")
+    }
+
+    private fun deleteAccount(user: User, request: DeleteAccountRequest): HttpResult {
+        val stored = users.firstOrNull { it.user.id == user.id } ?: return error(401, "UNAUTHORIZED", "Não autenticado")
+        if (request.password.isBlank()) throw Fail(error(400, "VALIDATION_ERROR", "Dados inválidos"))
+        if (stored.password != request.password) return error(401, "INVALID_CREDENTIALS", "Senha incorreta")
+        users.remove(stored)
+        jobs.removeAll { it.userId == user.id }
+        applications.removeAll { it.userId == user.id }
+        refreshTokens.entries.removeAll { it.value == user.id }
+        resetCodes.remove(user.email)
+        return HttpResult(204, "")
+    }
+
+    private fun issueAuth(stored: StoredUser): AuthResponse {
+        val refresh = "demo-refresh-${stored.user.id}-${stored.generation}-${nextRefresh++}"
+        refreshTokens[refresh] = stored.user.id
         val expiresAt = Clock.System.now().plus(120.minutes).toLocalDateTime(TimeZone.currentSystemDefault())
-        return ok(AuthResponse("demo-token-${stored.user.id}", "Bearer", expiresAt, stored.user))
+        return AuthResponse(
+            token = "demo-token-${stored.user.id}-${stored.generation}",
+            tokenType = "Bearer",
+            expiresAt = expiresAt,
+            user = stored.user,
+            refreshToken = refresh
+        )
     }
 
     private fun authenticatedUser(headers: Map<String, String>): User? {
-        val userId = headers["Authorization"]?.removePrefix("Bearer demo-token-")?.toIntOrNull() ?: return null
-        return users.firstOrNull { it.user.id == userId }?.user
+        val raw = headers["Authorization"]?.removePrefix("Bearer ") ?: return null
+        if (!raw.startsWith("demo-token-")) return null
+        val parts = raw.removePrefix("demo-token-").split("-")
+        val userId = parts.getOrNull(0)?.toIntOrNull() ?: return null
+        val generation = parts.getOrNull(1)?.toIntOrNull() ?: return null
+        val stored = users.firstOrNull { it.user.id == userId } ?: return null
+        return if (stored.generation == generation) stored.user else null
     }
 
     // ---------- vagas salvas ----------
@@ -424,7 +520,7 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
         }
         val northlight = job("Senior Product Designer, Platform", "Northlight Systems", "São Paulo", "SP", WorkMode.HYBRID, ExperienceLevel.SENIOR, JobType.CLT, 15000.0, 22000.0, "BRL", SavedJobStatus.IN_PROCESS)
         val ferrolane = job("Staff Product Designer, Payments", "Ferrolane", "Amsterdam", null, WorkMode.REMOTE, ExperienceLevel.LEAD, JobType.PJ, 105000.0, 125000.0, "EUR", SavedJobStatus.OFFER_RECEIVED)
-        val halden = job("Design Engineer", "Halden Labs", "Copenhagen", null, WorkMode.ONSITE, ExperienceLevel.MID, JobType.CLT, null, null, null, SavedJobStatus.APPLIED)
+        val halden = job("Design Engineer", "Halden Labs", "Copenhagen", null, WorkMode.ON_SITE, ExperienceLevel.MID, JobType.CLT, null, null, null, SavedJobStatus.APPLIED)
         val trailhead = job("Senior UX Researcher", "Trailhead Grid", null, null, WorkMode.HYBRID, ExperienceLevel.SENIOR, null, null, null, null, SavedJobStatus.REJECTED)
         job("Head of Design", "Ostrom Analytics", "Curitiba", "PR", WorkMode.REMOTE, ExperienceLevel.LEAD, null, 30000.0, null, "BRL", SavedJobStatus.PLANNING_TO_APPLY)
         job("Product Manager, Marketplace", "Meridian Freight", "Recife", "PE", WorkMode.REMOTE, ExperienceLevel.MID, JobType.CLT, 12000.0, 16000.0, "BRL", SavedJobStatus.SAVED)

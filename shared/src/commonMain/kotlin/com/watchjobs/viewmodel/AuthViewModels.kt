@@ -135,3 +135,108 @@ class SignupViewModel(private val authRepository: AuthRepository) : ViewModel() 
         }
     }
 }
+
+data class ForgotPasswordState(
+    val step: Int = 1,
+    val email: String = "",
+    val code: String = "",
+    val password: String = "",
+    val confirmPassword: String = "",
+    val info: String? = null,
+    val loading: Boolean = false,
+    val error: String? = null,
+    val fieldErrors: Map<String, String> = emptyMap()
+)
+
+class ForgotPasswordViewModel(
+    private val authRepository: AuthRepository,
+    initialEmail: String = ""
+) : ViewModel() {
+    private val mutableState = MutableStateFlow(ForgotPasswordState(email = initialEmail))
+    val state: StateFlow<ForgotPasswordState> = mutableState.asStateFlow()
+
+    fun onEmailChange(value: String) = mutableState.update { it.copy(email = value, fieldErrors = it.fieldErrors - "email") }
+    fun onCodeChange(value: String) = mutableState.update { it.copy(code = value, fieldErrors = it.fieldErrors - "code") }
+    fun onPasswordChange(value: String) = mutableState.update { it.copy(password = value, fieldErrors = it.fieldErrors - "newPassword") }
+    fun onConfirmChange(value: String) = mutableState.update { it.copy(confirmPassword = value, fieldErrors = it.fieldErrors - "confirmPassword") }
+
+    fun requestCode() {
+        val email = state.value.email.trim()
+        if (email.isBlank()) {
+            mutableState.update { it.copy(fieldErrors = mapOf("email" to "E-mail é obrigatório"), error = null) }
+            return
+        }
+        mutableState.update { it.copy(loading = true, error = null, fieldErrors = emptyMap()) }
+        viewModelScope.launchRequest(
+            onError = { ex -> mutableState.update { it.copy(loading = false, error = ex.generalMessage(), fieldErrors = ex.fieldErrors()) } }
+        ) {
+            val demoCode = authRepository.forgotPassword(email)
+            val extra = demoCode?.let { " No modo demonstração, o código é $it." }.orEmpty()
+            mutableState.update {
+                it.copy(
+                    loading = false,
+                    step = 2,
+                    info = "Se o e-mail existir, enviamos um código.$extra"
+                )
+            }
+        }
+    }
+
+    fun reset(onSuccess: (String) -> Unit) {
+        val current = state.value
+        val errors = buildMap {
+            if (current.code.length != 6 || current.code.any { !it.isDigit() }) put("code", "Código deve ter 6 dígitos")
+            if (current.password.length !in 8..255 || !current.password.any { it.isLetter() } || !current.password.any { it.isDigit() }) {
+                put("newPassword", "Senha deve ter entre 8 e 255 caracteres, com pelo menos uma letra e um número")
+            }
+            if (current.confirmPassword != current.password) put("confirmPassword", "A senha e a confirmação de senha não coincidem")
+        }
+        if (errors.isNotEmpty()) {
+            mutableState.update { it.copy(fieldErrors = errors, error = null) }
+            return
+        }
+        mutableState.update { it.copy(loading = true, error = null, fieldErrors = emptyMap()) }
+        viewModelScope.launchRequest(
+            onError = { ex -> mutableState.update { it.copy(loading = false, error = ex.generalMessage(), fieldErrors = ex.fieldErrors()) } }
+        ) {
+            authRepository.resetPassword(current.email.trim(), current.code.trim(), current.password, current.confirmPassword)
+            mutableState.update { it.copy(loading = false) }
+            onSuccess(current.email.trim())
+        }
+    }
+}
+
+data class DeleteAccountState(
+    val password: String = "",
+    val confirmed: Boolean = false,
+    val loading: Boolean = false,
+    val error: String? = null
+)
+
+class DeleteAccountViewModel(private val authRepository: AuthRepository) : ViewModel() {
+    private val mutableState = MutableStateFlow(DeleteAccountState())
+    val state: StateFlow<DeleteAccountState> = mutableState.asStateFlow()
+
+    fun onPasswordChange(value: String) = mutableState.update { it.copy(password = value, error = null) }
+    fun onConfirmedChange(value: Boolean) = mutableState.update { it.copy(confirmed = value) }
+
+    fun submit(onSuccess: () -> Unit) {
+        val current = state.value
+        if (current.password.isBlank()) {
+            mutableState.update { it.copy(error = "Senha é obrigatória") }
+            return
+        }
+        if (!current.confirmed) {
+            mutableState.update { it.copy(error = "Confirme que deseja excluir a conta.") }
+            return
+        }
+        mutableState.update { it.copy(loading = true, error = null) }
+        viewModelScope.launchRequest(
+            onError = { ex -> mutableState.update { it.copy(loading = false, error = ex.generalMessage()) } }
+        ) {
+            authRepository.deleteAccount(current.password)
+            mutableState.update { it.copy(loading = false) }
+            onSuccess()
+        }
+    }
+}

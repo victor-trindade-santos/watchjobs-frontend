@@ -2,11 +2,19 @@ package com.watchjobs.data.repository
 
 import com.watchjobs.data.dto.ApplicationRequest
 import com.watchjobs.data.dto.AuthResponse
+import com.watchjobs.data.dto.DeleteAccountRequest
+import com.watchjobs.data.dto.DemoForgotResponse
+import com.watchjobs.data.dto.ForgotPasswordRequest
+import com.watchjobs.data.dto.LogoutRequest
+import com.watchjobs.data.dto.ResetPasswordRequest
 import com.watchjobs.data.dto.SavedJobRequest
 import com.watchjobs.data.dto.SigninRequest
 import com.watchjobs.data.dto.SignupRequest
 import com.watchjobs.data.local.TokenStorage
 import com.watchjobs.data.remote.ApiClient
+import com.watchjobs.data.remote.ApiException
+import com.watchjobs.data.remote.ApiJson
+import kotlinx.serialization.encodeToString
 import com.watchjobs.model.Application
 import com.watchjobs.model.ApplicationStage
 import com.watchjobs.model.SavedJob
@@ -30,7 +38,37 @@ class AuthRepository(
 
     fun isLoggedIn(): Boolean = tokenStorage.hasValidSession()
 
-    fun logout() = tokenStorage.clear()
+    suspend fun logout() {
+        val refresh = tokenStorage.refreshToken()
+        try {
+            if (refresh != null) {
+                api.request("POST", "/auth/logout", ApiJson.encodeToString(LogoutRequest(refresh)))
+            }
+        } catch (_: ApiException) {
+            // A sessão local é limpa mesmo se o servidor já não reconhecer o token.
+        } finally {
+            tokenStorage.clear()
+        }
+    }
+
+    suspend fun deleteAccount(password: String) {
+        api.request("DELETE", "/me", ApiJson.encodeToString(DeleteAccountRequest(password)))
+        tokenStorage.clear()
+    }
+
+    suspend fun forgotPassword(email: String): String? {
+        val body = api.request("POST", "/password/forgot", ApiJson.encodeToString(ForgotPasswordRequest(email)))
+        if (body.isBlank()) return null
+        return runCatching { ApiJson.decodeFromString<DemoForgotResponse>(body).demoCode }.getOrNull()
+    }
+
+    suspend fun resetPassword(email: String, code: String, newPassword: String, confirmPassword: String) {
+        api.request(
+            "POST",
+            "/password/reset",
+            ApiJson.encodeToString(ResetPasswordRequest(email, code, newPassword, confirmPassword))
+        )
+    }
 }
 
 class SavedJobRepository(private val api: ApiClient) {

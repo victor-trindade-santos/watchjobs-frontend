@@ -61,8 +61,32 @@ data class AuthResponse(
     val token: String,
     val tokenType: String = "Bearer",
     val expiresAt: LocalDateTime,
-    val user: User
+    val user: User,
+    val refreshToken: String = ""
 )
+
+@Serializable
+data class RefreshRequest(val refreshToken: String)
+
+@Serializable
+data class LogoutRequest(val refreshToken: String)
+
+@Serializable
+data class ForgotPasswordRequest(val email: String)
+
+@Serializable
+data class ResetPasswordRequest(
+    val email: String,
+    val code: String,
+    val newPassword: String,
+    val confirmPassword: String
+)
+
+@Serializable
+data class DeleteAccountRequest(val password: String)
+
+@Serializable
+data class DemoForgotResponse(val demoCode: String? = null)
 
 @Serializable
 data class ApiError(

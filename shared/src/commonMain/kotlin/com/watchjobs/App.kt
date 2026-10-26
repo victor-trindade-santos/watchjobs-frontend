@@ -36,6 +36,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.watchjobs.data.remote.FakeBackendTransport
 import com.watchjobs.ui.application.ApplicationFormScreen
 import com.watchjobs.ui.application.ApplicationListScreen
+import com.watchjobs.ui.auth.DeleteAccountDialog
+import com.watchjobs.ui.auth.ForgotPasswordScreen
 import com.watchjobs.ui.auth.LoginScreen
 import com.watchjobs.ui.auth.SignupScreen
 import com.watchjobs.ui.components.MainScaffold
@@ -44,6 +46,8 @@ import com.watchjobs.ui.savedjob.SavedJobFormScreen
 import com.watchjobs.ui.savedjob.SavedJobListScreen
 import com.watchjobs.ui.theme.WatchJobsColors
 import com.watchjobs.ui.theme.WatchJobsTheme
+import com.watchjobs.viewmodel.DeleteAccountViewModel
+import com.watchjobs.viewmodel.ForgotPasswordViewModel
 import com.watchjobs.viewmodel.ApplicationFormViewModel
 import com.watchjobs.viewmodel.ApplicationListViewModel
 import com.watchjobs.viewmodel.LoginViewModel
@@ -55,6 +59,7 @@ import kotlinx.coroutines.launch
 // Navegação por estado simples: a tela atual fica numa variável e um "when" decide o que mostrar.
 sealed interface Screen {
     data class Login(val email: String = "") : Screen
+    data class ForgotPassword(val email: String = "") : Screen
     data object Signup : Screen
     data object SavedJobs : Screen
     data class SavedJobForm(val id: Long? = null) : Screen
@@ -89,7 +94,7 @@ fun App(container: AppContainer = remember { AppContainer() }) {
             Column(Modifier.fillMaxSize()) {
                 if (container.demoMode) DemoBanner()
                 ScreenHost(screen) { current ->
-                    AppScreen(current, container, navigate)
+                    AppScreen(current, container, navigate, scope)
                 }
             }
             SnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter).padding(20.dp)) { data ->
@@ -100,12 +105,24 @@ fun App(container: AppContainer = remember { AppContainer() }) {
 }
 
 @Composable
-private fun AppScreen(current: Screen, container: AppContainer, navigate: (Screen, String?) -> Unit) {
+private fun AppScreen(
+    current: Screen,
+    container: AppContainer,
+    navigate: (Screen, String?) -> Unit,
+    scope: kotlinx.coroutines.CoroutineScope
+) {
+    var showDeleteAccount by remember { mutableStateOf(false) }
     when (current) {
         is Screen.Login -> LoginScreen(
             viewModel = viewModel { LoginViewModel(container.authRepository, current.email) },
             onLoggedIn = { navigate(Screen.SavedJobs, null) },
-            onCreateAccount = { navigate(Screen.Signup, null) }
+            onCreateAccount = { navigate(Screen.Signup, null) },
+            onForgotPassword = { navigate(Screen.ForgotPassword(current.email), null) }
+        )
+        is Screen.ForgotPassword -> ForgotPasswordScreen(
+            viewModel = viewModel { ForgotPasswordViewModel(container.authRepository, current.email) },
+            onDone = { email -> navigate(Screen.Login(email), "Senha redefinida. Entre com a nova senha.") },
+            onBackToLogin = { navigate(Screen.Login(current.email), null) }
         )
         Screen.Signup -> SignupScreen(
             viewModel = viewModel { SignupViewModel(container.authRepository) },
@@ -117,9 +134,12 @@ private fun AppScreen(current: Screen, container: AppContainer, navigate: (Scree
             currentTab = if (current is Screen.Applications || current is Screen.ApplicationForm) MainTab.APPLICATIONS else MainTab.SAVED_JOBS,
             onTabSelected = { tab -> navigate(if (tab == MainTab.SAVED_JOBS) Screen.SavedJobs else Screen.Applications, null) },
             onLogout = {
-                container.authRepository.logout()
-                navigate(Screen.Login(), "Você saiu da conta.")
-            }
+                scope.launch {
+                    container.authRepository.logout()
+                    navigate(Screen.Login(), "Você saiu da conta.")
+                }
+            },
+            onDeleteAccount = { showDeleteAccount = true }
         ) {
             val backToJobs: (String) -> Unit = { message -> navigate(Screen.SavedJobs, message) }
             val backToApplications: (String) -> Unit = { message -> navigate(Screen.Applications, message) }
@@ -153,6 +173,16 @@ private fun AppScreen(current: Screen, container: AppContainer, navigate: (Scree
                 else -> Unit
             }
         }
+    }
+    if (showDeleteAccount) {
+        DeleteAccountDialog(
+            viewModel = viewModel { DeleteAccountViewModel(container.authRepository) },
+            onDeleted = {
+                showDeleteAccount = false
+                navigate(Screen.Login(), "Conta excluída.")
+            },
+            onDismiss = { showDeleteAccount = false }
+        )
     }
 }
 

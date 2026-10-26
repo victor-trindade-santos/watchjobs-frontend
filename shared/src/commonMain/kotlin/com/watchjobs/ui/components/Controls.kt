@@ -1,6 +1,15 @@
 package com.watchjobs.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -133,6 +142,8 @@ fun LabeledTextField(
     enabled: Boolean = true,
     tag: String = label
 ) {
+    var passwordVisible by remember { mutableStateOf(false) }
+    val hint = placeholder ?: if (isPassword) "Digite a sua senha" else null
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         SectionLabel(label, color = WatchJobsColors.Muted)
         OutlinedTextField(
@@ -143,15 +154,48 @@ fun LabeledTextField(
             isError = error != null,
             singleLine = singleLine,
             minLines = minLines,
-            placeholder = placeholder?.let { { Text(it, style = MaterialTheme.typography.bodyMedium, color = WatchJobsColors.Muted) } },
+            placeholder = hint?.let { { Text(it, style = MaterialTheme.typography.bodyMedium, color = WatchJobsColors.Muted) } },
+            trailingIcon = if (isPassword) {
+                {
+                    IconButton(
+                        onClick = { passwordVisible = !passwordVisible },
+                        modifier = Modifier
+                            .testTag("${tag}Toggle")
+                            .semantics { contentDescription = if (passwordVisible) "Ocultar senha" else "Mostrar senha" }
+                    ) {
+                        EyeIcon(open = passwordVisible, color = WatchJobsColors.Muted)
+                    }
+                }
+            } else null,
             textStyle = MaterialTheme.typography.bodyLarge,
-            visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
+            visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
             keyboardOptions = KeyboardOptions(keyboardType = if (isPassword) KeyboardType.Password else keyboardType),
             shape = RectangleShape,
             colors = fieldColors()
         )
         if (error != null) {
             Text(error, style = MaterialTheme.typography.bodySmall, color = WatchJobsColors.Error)
+        }
+    }
+}
+
+// Desenhado à mão para não depender do material-icons-extended.
+@Composable
+private fun EyeIcon(open: Boolean, color: androidx.compose.ui.graphics.Color) {
+    Canvas(Modifier.size(20.dp)) {
+        val w = size.width
+        val h = size.height
+        val stroke = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round)
+        val eye = Path().apply {
+            moveTo(w * 0.06f, h * 0.5f)
+            quadraticTo(w * 0.5f, h * 0.08f, w * 0.94f, h * 0.5f)
+            quadraticTo(w * 0.5f, h * 0.92f, w * 0.06f, h * 0.5f)
+            close()
+        }
+        drawPath(eye, color, style = stroke)
+        drawCircle(color, radius = w * 0.13f, center = center, style = stroke)
+        if (!open) {
+            drawLine(color, Offset(w * 0.14f, h * 0.14f), Offset(w * 0.86f, h * 0.86f), strokeWidth = stroke.width, cap = StrokeCap.Round)
         }
     }
 }

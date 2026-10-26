@@ -69,7 +69,7 @@ enum class ExperienceLevel(val label: String) {
     MID("Pleno"),
     SENIOR("Sênior"),
     SPECIALIST("Especialista"),
-    LEAD("Liderança")
+    LEAD("Liderança"),
     UNKNOWN("Não informado");
 
     companion object {
@@ -83,7 +83,7 @@ enum class JobType(val label: String) {
     PJ("PJ"),
     INTERNSHIP("Estágio"),
     FREELANCE("Freelance"),
-    TEMPORARY("Temporário")
+    TEMPORARY("Temporário"),
     UNKNOWN("Não informado");
 
     companion object {

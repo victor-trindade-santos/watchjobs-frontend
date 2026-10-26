@@ -170,7 +170,7 @@ class AppIntegrationTest {
                 val ids = runBlocking {
                     val repo = container.savedJobRepository
                     val ferrolane = repo.create(SavedJobRequest("Staff Product Designer, Payments", "Ferrolane", locationCity = "Amsterdam", workMode = WorkMode.REMOTE, experienceLevel = ExperienceLevel.LEAD, jobType = JobType.PJ, salaryMin = 105000.0, salaryMax = 125000.0, salaryCurrency = "EUR", status = SavedJobStatus.SAVED))
-                    val halden = repo.create(SavedJobRequest("Design Engineer", "Halden Labs", locationCity = "Copenhagen", workMode = WorkMode.ONSITE, experienceLevel = ExperienceLevel.MID, jobType = JobType.CLT, status = SavedJobStatus.SAVED))
+                    val halden = repo.create(SavedJobRequest("Design Engineer", "Halden Labs", locationCity = "Copenhagen", workMode = WorkMode.ON_SITE, experienceLevel = ExperienceLevel.MID, jobType = JobType.CLT, status = SavedJobStatus.SAVED))
                     val trailhead = repo.create(SavedJobRequest("Senior UX Researcher", "Trailhead Grid", workMode = WorkMode.HYBRID, status = SavedJobStatus.SAVED))
                     repo.create(SavedJobRequest("Head of Design", "Ostrom Analytics", locationCity = "Curitiba", locationState = "PR", workMode = WorkMode.REMOTE, salaryMin = 30000.0, status = SavedJobStatus.PLANNING_TO_APPLY))
                     val apps = container.applicationRepository
