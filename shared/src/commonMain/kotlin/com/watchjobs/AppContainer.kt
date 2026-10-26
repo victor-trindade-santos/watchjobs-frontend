@@ -13,6 +13,7 @@ import com.watchjobs.data.remote.createHttpTransport
 import com.watchjobs.data.remote.platformDemoMode
 import com.watchjobs.data.repository.ApplicationRepository
 import com.watchjobs.data.repository.AuthRepository
+import com.watchjobs.data.repository.JobSearchRepository
 import com.watchjobs.data.repository.SavedJobRepository
 
 // Injeção de dependências manual: cria uma vez o cliente HTTP, o armazenamento e os repositórios.
@@ -28,4 +29,5 @@ class AppContainer(
     val authRepository = AuthRepository(api, tokenStorage)
     val savedJobRepository = SavedJobRepository(api)
     val applicationRepository = ApplicationRepository(api)
+    val jobSearchRepository = JobSearchRepository(api)
 }

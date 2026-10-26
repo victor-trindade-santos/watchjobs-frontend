@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.watchjobs.ui.theme.WatchJobsColors
 
 enum class MainTab(val label: String) {
+    JOB_SEARCH("Buscar vagas"),
     SAVED_JOBS("Vagas salvas"),
     APPLICATIONS("Candidaturas")
 }

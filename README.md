@@ -40,6 +40,7 @@ Quem procura emprego perde o controle de quais vagas lhe interessaram, onde já 
 O mesmo código roda no **Android**, no **Desktop** e na **Web**:
 
 - **Login e cadastro**, com os erros de validação do backend mostrados embaixo de cada campo.
+- **Buscar vagas:** vagas reais coletadas pelo motor do backend (Greenhouse e Adzuna), com busca por cargo ou empresa e filtros de local, modo, nível e contrato. Cada cartão mostra a fonte ("via ...") e quando a vaga sai da busca ("Expira em N dias"). **Ver vaga** abre o link original e **Salvar** copia a vaga para Vagas salvas, onde ela não expira.
 - **Vagas salvas:** lista com busca por cargo ou empresa, indicadores e formulário com **Gravar** e **Limpar Campos**, além de editar e excluir.
 - **Candidaturas:** quadro por status (Candidatadas, Em processo, Propostas, Encerradas), com busca e formulário com **Gravar** e **Limpar Campos**, além de editar e excluir. Criar ou editar uma candidatura atualiza o status da vaga.
 
@@ -75,10 +76,10 @@ Código comum em `shared/src/commonMain/kotlin/com/watchjobs/`:
 
 | Camada | Pasta | O que tem |
 |---|---|---|
-| Apresentação | `ui/auth/`, `ui/savedjob/`, `ui/application/`, `ui/components/`, `ui/theme/` | Telas, formulários, componentes (logo, campos, listas de seleção, quadro) e o tema |
+| Apresentação | `ui/auth/`, `ui/jobs/`, `ui/savedjob/`, `ui/application/`, `ui/components/`, `ui/theme/` | Telas, formulários, componentes (logo, campos, listas de seleção, quadro) e o tema |
 | Estado | `viewmodel/` | ViewModels com `StateFlow` (estado do formulário, erros por campo, carregamento) |
 | Dados | `data/repository/`, `data/remote/`, `data/dto/`, `data/local/` | Repositórios, `ApiClient` e `HttpTransport`, DTOs e `TokenStorage` |
-| Domínio | `model/` | `SavedJob`, `Application`, `ApplicationStage`, `User` e enums com rótulos em português |
+| Domínio | `model/` | `SavedJob`, `Application`, `ApplicationStage`, `JobPosting` (vaga do corpus), `User` e enums com rótulos em português |
 | Navegação e injeção | `App.kt`, `AppContainer.kt` | `sealed interface Screen` + `when`, e a criação manual das dependências |
 
 Código de cada plataforma (`expect`/`actual`):
@@ -118,9 +119,7 @@ cd watchjobs-backend
 .\gradlew.bat bootRun
 ```
 
-Espere aparecer `Tomcat started on port 8081` no log. O `bootRun` também sobe o PostgreSQL pelo Docker Compose e aplica as migrations.
-
-**Sem Docker?** Suba o backend com o banco H2 embutido, sem instalar nenhum banco: `.\gradlew.bat bootRun -Ph2`. Os dados ficam em memória e somem quando o backend para. Os detalhes estão na seção 7.2 do README do backend.
+Espere aparecer `Tomcat started on port 8081` no log. O `bootRun` também sobe o PostgreSQL pelo Docker Compose e aplica as migrations. Para a aba **Buscar vagas** ter conteúdo, rode também uma coleta do motor (seção 7.3 do README do backend).
 
 **2º passo: em outro terminal, rode o app** na plataforma desejada:
 
@@ -156,7 +155,7 @@ Para conhecer o app sem instalar Docker nem subir o backend. O app usa um **back
 
 **Acesso pronto:** `demo@watchjobs.com`, senha `demo1234`, que já tem vagas e candidaturas de exemplo. Também dá para criar uma conta nova em **Criar conta**.
 
-O modo demonstração existe no Desktop e na Web. O Android sempre usa o backend.
+O modo demonstração existe no Desktop e na Web. O Android sempre usa o backend. Ele cobre o escopo da prova e uma amostra fixa de 4 vagas na aba **Buscar vagas**; as demais funcionalidades novas só aparecem com o backend real.
 
 ### 7.3 Testes
 
@@ -164,7 +163,7 @@ O modo demonstração existe no Desktop e na Web. O Android sempre usa o backend
 .\gradlew.bat :shared:jvmTest
 ```
 
-Esse comando roda os testes de formatação (datas e valores) e o **teste integrado**, que abre o app de verdade e faz o fluxo completo: cadastro, login, CRUD das duas entidades, busca, regras de status, exclusões e logout. As capturas de tela ficam em `shared/build/screenshots`.
+Esse comando roda os testes de formatação (datas e valores), o fluxo de **Buscar vagas** no modo demonstração (`JobSearchFlowTest`) e o **teste integrado**, que abre o app de verdade e faz o fluxo completo: cadastro, login, CRUD das duas entidades, busca, regras de status, exclusões e logout. As capturas de tela ficam em `shared/build/screenshots`.
 
 - **Em modo demonstração**, o fluxo roda sempre.
 - **Contra o backend real**, o fluxo só roda se o backend estiver no ar em `localhost:8081`. Com o backend fora do ar, essa parte é ignorada.

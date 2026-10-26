@@ -15,6 +15,10 @@ import com.watchjobs.data.dto.SignupRequest
 import com.watchjobs.model.Application
 import com.watchjobs.model.ApplicationStage
 import com.watchjobs.model.ExperienceLevel
+import com.watchjobs.model.JobDetail
+import com.watchjobs.model.JobPosting
+import com.watchjobs.model.JobSearchPage
+import com.watchjobs.model.JobSkill
 import com.watchjobs.model.JobType
 import com.watchjobs.model.SavedJob
 import com.watchjobs.model.SavedJobStatus
@@ -70,8 +74,11 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
     private var nextUserId = 1
     private var nextJobId = 1L
     private var nextApplicationId = 1
+    private val corpus = mutableListOf<JobPosting>()
+    private val savedFromCorpus = mutableMapOf<Pair<Int, Long>, Long>()
 
     init {
+        seedCorpus()
         if (seed) seedDemoData()
     }
 
@@ -116,6 +123,7 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
             "application-stages" -> if (method == "GET") ok(stages.filter { query.isNullOrBlank() || it.name.contains(query.trim(), true) }) else notFound()
             "saved-jobs" -> savedJobs(method, segments.getOrNull(1), user.id, query, body)
             "applications" -> applicationsRoute(method, segments.getOrNull(1), user.id, query, body)
+            "jobs" -> corpusRoute(method, segments, user.id, pathAndQuery.substringAfter("?", ""))
             else -> notFound()
         }
     }
@@ -180,7 +188,7 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
             throw Fail(error(400, "VALIDATION_ERROR", "Dados inválidos"))
         }
         val stored = users.firstOrNull { it.user.email == email } ?: return HttpResult(202, "")
-        val code = "%06d".format((100000..999999).random())
+        val code = (100000..999999).random().toString()
         resetCodes[email] = ResetCode(code)
         return HttpResult(202, json.encodeToString(DemoForgotResponse(code)))
     }
@@ -457,6 +465,85 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
             notes = notes,
             feedback = feedback
         )
+    }
+
+    // ---------- corpus (Buscar vagas) ----------
+
+    private fun corpusRoute(method: String, segments: List<String>, userId: Int, rawQuery: String): HttpResult {
+        val params = rawQuery.split("&").filter { it.contains('=') }
+            .associate { it.substringBefore("=") to decodeQuery(it.substringAfter("=")) }
+        val idText = segments.getOrNull(1)
+        if (method == "GET" && idText == "search" && segments.size == 2) return searchCorpus(userId, params)
+        val id = idText?.toLongOrNull() ?: return notFound()
+        val posting = corpus.firstOrNull { it.id == id } ?: return error(404, "NOT_FOUND", "Vaga não encontrada")
+        return when {
+            method == "GET" && segments.size == 2 ->
+                ok(JobDetail(posting.forUser(userId), posting.descriptionSnippet, listOf(JobSkill("Kotlin"), JobSkill("SQL", required = false))))
+            method == "POST" && segments.size == 3 && segments[2] == "save" -> saveFromCorpus(userId, posting)
+            else -> notFound()
+        }
+    }
+
+    private fun searchCorpus(userId: Int, params: Map<String, String>): HttpResult {
+        val q = params["q"]?.trim().orEmpty()
+        val location = params["location"]?.trim().orEmpty()
+        val page = params["page"]?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+        val size = params["size"]?.toIntOrNull()?.coerceIn(1, 50) ?: 20
+        val matches = corpus.filter { job ->
+            (q.isEmpty() || job.title.contains(q, true) || job.organizationName.contains(q, true)) &&
+                (location.isEmpty() || job.placeLabel.contains(location, true) || job.rawLocation?.contains(location, true) == true) &&
+                (params["workMode"] == null || job.workMode?.name == params["workMode"]) &&
+                (params["level"] == null || job.experienceLevel?.name == params["level"]) &&
+                (params["jobType"] == null || job.jobType?.name == params["jobType"])
+        }
+        val items = matches.drop(page * size).take(size).map { it.forUser(userId) }
+        return ok(JobSearchPage(items, page, size, matches.size.toLong()))
+    }
+
+    private fun saveFromCorpus(userId: Int, posting: JobPosting): HttpResult {
+        if (posting.forUser(userId).alreadySaved) throw Fail(error(409, "CONFLICT", "Você já salvou esta vaga"))
+        val now = now()
+        val request = SavedJobRequest(
+            positionRole = posting.title,
+            organizationName = posting.organizationName,
+            jobUrl = posting.jobUrl,
+            locationCity = posting.locationCity,
+            locationState = posting.locationState,
+            locationCountryCode = posting.locationCountryCode,
+            workMode = posting.workMode,
+            experienceLevel = posting.experienceLevel,
+            jobType = posting.jobType,
+            salaryMin = posting.salaryMin,
+            salaryMax = posting.salaryMax,
+            salaryCurrency = posting.salaryCurrency,
+            status = SavedJobStatus.SAVED,
+            notes = posting.descriptionSnippet
+        )
+        val job = request.toJob(nextJobId++, now, now)
+        jobs += StoredJob(userId, job)
+        savedFromCorpus[userId to posting.id] = job.id ?: 0L
+        return ok(job, 201)
+    }
+
+    // A vaga conta como salva enquanto a cópia existir em "Vagas salvas".
+    private fun JobPosting.forUser(userId: Int): JobPosting {
+        val savedId = savedFromCorpus[userId to id]
+        return copy(alreadySaved = savedId != null && jobs.any { it.userId == userId && it.job.id == savedId })
+    }
+
+    private fun seedCorpus() {
+        fun posting(id: Long, title: String, company: String, city: String?, state: String?, raw: String, mode: WorkMode, level: ExperienceLevel?, type: JobType?, source: String, days: Int, min: Double? = null, max: Double? = null) =
+            JobPosting(
+                id = id, title = title, organizationName = company, locationCity = city, locationState = state,
+                locationCountryCode = "BR", rawLocation = raw, workMode = mode, experienceLevel = level, jobType = type,
+                salaryMin = min, salaryMax = max, salaryCurrency = if (min != null) "BRL" else null,
+                jobUrl = "https://example.com/vagas/$id", sourceName = source, requiresAttribution = source == "Adzuna",
+                descriptionSnippet = "Vaga de demonstração: $title na $company.", expiresInDays = days
+            )
+        corpus += posting(1001, "Senior Backend Engineer (Kotlin)", "Halden Labs", "São Paulo", "SP", "São Paulo, Brazil", WorkMode.HYBRID, ExperienceLevel.SENIOR, JobType.CLT, "Greenhouse", 27)
+        corpus += posting(1002, "Desenvolvedor(a) Front-end Pleno", "Brisa Pagamentos", null, null, "Remote - Brazil", WorkMode.REMOTE, ExperienceLevel.MID, JobType.PJ, "Adzuna", 12, 9000.0, 12000.0)
+        corpus += posting(1003, "Data Engineer", "Lumen Saúde", "Rio de Janeiro", "RJ", "Rio de Janeiro - RJ", WorkMode.ON_SITE, null, null, "Greenhouse", 2)
+        corpus += posting(1004, "Estágio em Desenvolvimento Mobile", "Halden Labs", "Florianópolis", "SC", "Florianópolis", WorkMode.HYBRID, ExperienceLevel.INTERN, JobType.INTERNSHIP, "Greenhouse", 30)
     }
 
     // ---------- utilitários ----------

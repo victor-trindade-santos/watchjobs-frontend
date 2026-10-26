@@ -42,6 +42,7 @@ import com.watchjobs.ui.auth.LoginScreen
 import com.watchjobs.ui.auth.SignupScreen
 import com.watchjobs.ui.components.MainScaffold
 import com.watchjobs.ui.components.MainTab
+import com.watchjobs.ui.jobs.JobSearchScreen
 import com.watchjobs.ui.savedjob.SavedJobFormScreen
 import com.watchjobs.ui.savedjob.SavedJobListScreen
 import com.watchjobs.ui.theme.WatchJobsColors
@@ -50,6 +51,7 @@ import com.watchjobs.viewmodel.DeleteAccountViewModel
 import com.watchjobs.viewmodel.ForgotPasswordViewModel
 import com.watchjobs.viewmodel.ApplicationFormViewModel
 import com.watchjobs.viewmodel.ApplicationListViewModel
+import com.watchjobs.viewmodel.JobSearchViewModel
 import com.watchjobs.viewmodel.LoginViewModel
 import com.watchjobs.viewmodel.SavedJobFormViewModel
 import com.watchjobs.viewmodel.SavedJobListViewModel
@@ -65,6 +67,7 @@ sealed interface Screen {
     data class SavedJobForm(val id: Long? = null) : Screen
     data object Applications : Screen
     data class ApplicationForm(val id: Int? = null, val savedJobId: Long? = null) : Screen
+    data object JobSearch : Screen
 }
 
 @Composable
@@ -131,8 +134,19 @@ private fun AppScreen(
         )
         else -> MainScaffold(
             initials = container.authRepository.currentUser()?.initials ?: "?",
-            currentTab = if (current is Screen.Applications || current is Screen.ApplicationForm) MainTab.APPLICATIONS else MainTab.SAVED_JOBS,
-            onTabSelected = { tab -> navigate(if (tab == MainTab.SAVED_JOBS) Screen.SavedJobs else Screen.Applications, null) },
+            currentTab = when (current) {
+                is Screen.Applications, is Screen.ApplicationForm -> MainTab.APPLICATIONS
+                is Screen.JobSearch -> MainTab.JOB_SEARCH
+                else -> MainTab.SAVED_JOBS
+            },
+            onTabSelected = { tab ->
+                val target = when (tab) {
+                    MainTab.JOB_SEARCH -> Screen.JobSearch
+                    MainTab.SAVED_JOBS -> Screen.SavedJobs
+                    MainTab.APPLICATIONS -> Screen.Applications
+                }
+                navigate(target, null)
+            },
             onLogout = {
                 scope.launch {
                     container.authRepository.logout()
@@ -169,6 +183,10 @@ private fun AppScreen(
                     onSaved = backToApplications,
                     onCancel = { navigate(Screen.Applications, null) },
                     onNewSavedJob = { navigate(Screen.SavedJobForm(), null) }
+                )
+                Screen.JobSearch -> JobSearchScreen(
+                    viewModel = viewModel { JobSearchViewModel(container.jobSearchRepository) },
+                    showMessage = { message -> navigate(Screen.JobSearch, message) }
                 )
                 else -> Unit
             }
