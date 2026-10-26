@@ -46,9 +46,13 @@ class ApiClient(
         request("DELETE", path, body)
     }
 
-    suspend fun request(method: String, path: String, body: String?): String {
+    suspend fun request(method: String, path: String, body: String?): String =
+        requestWithLatestBody(method, path) { body }
+
+    // O corpo é montado de novo na repetição, porque o refresh pode ter trocado o que ele contém.
+    suspend fun requestWithLatestBody(method: String, path: String, buildBody: () -> String?): String {
         val sentToken = tokenStorage.token()
-        val response = send(method, path, body, sentToken)
+        val response = send(method, path, buildBody(), sentToken)
         if (response.status in 200..299) return response.body
         if (response.status == 401 && canRefresh(path)) {
             val refreshed = refreshMutex.withLock {
@@ -60,7 +64,7 @@ class ApiClient(
                 }
             }
             if (refreshed) {
-                val retry = send(method, path, body, tokenStorage.token())
+                val retry = send(method, path, buildBody(), tokenStorage.token())
                 if (retry.status in 200..299) return retry.body
                 fail(retry, clearSession = retry.status == 401)
             }

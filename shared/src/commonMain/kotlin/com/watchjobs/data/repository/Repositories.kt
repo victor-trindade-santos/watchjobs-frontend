@@ -39,10 +39,11 @@ class AuthRepository(
     fun isLoggedIn(): Boolean = tokenStorage.hasValidSession()
 
     suspend fun logout() {
-        val refresh = tokenStorage.refreshToken()
         try {
-            if (refresh != null) {
-                api.request("POST", "/auth/logout", ApiJson.encodeToString(LogoutRequest(refresh)))
+            if (tokenStorage.refreshToken() != null) {
+                api.requestWithLatestBody("POST", "/auth/logout") {
+                    tokenStorage.refreshToken()?.let { ApiJson.encodeToString(LogoutRequest(it)) }
+                }
             }
         } catch (_: ApiException) {
             // A sessão local é limpa mesmo se o servidor já não reconhecer o token.
