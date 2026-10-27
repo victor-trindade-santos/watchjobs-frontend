@@ -9,6 +9,22 @@ plugins {
     alias(libs.plugins.kotlinxSerialization)
 }
 
+// URL do backend definida no build, não no código (F7-05): -Pwatchjobs.apiUrl=https://api.exemplo.com
+// Vazia = cada plataforma usa a sua padrão de desenvolvimento.
+val apiUrl = providers.gradleProperty("watchjobs.apiUrl").orElse("")
+val generateBuildEnv = tasks.register("generateBuildEnv") {
+    val output = layout.buildDirectory.dir("generated/buildEnv/kotlin")
+    val url = apiUrl
+    inputs.property("apiUrl", url)
+    outputs.dir(output)
+    doLast {
+        val file = output.get().file("com/watchjobs/BuildEnv.kt").asFile
+        file.parentFile.mkdirs()
+        val escaped = url.get().replace("\\", "\\\\").replace("\"", "\\\"")
+        file.writeText("package com.watchjobs\n\ninternal object BuildEnv {\n    const val API_URL: String = \"$escaped\"\n}\n")
+    }
+}
+
 kotlin {
     jvm()
 
@@ -41,6 +57,12 @@ kotlin {
         }
         wasmJsMain.dependencies {
             implementation(libs.kotlinx.browser)
+        }
+        androidMain.dependencies {
+            implementation(libs.androidx.activity.compose)
+        }
+        commonMain {
+            kotlin.srcDir(generateBuildEnv)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

@@ -40,9 +40,10 @@ Quem procura emprego perde o controle de quais vagas lhe interessaram, onde já 
 O mesmo código roda no **Android**, no **Desktop** e na **Web**:
 
 - **Login e cadastro**, com os erros de validação do backend mostrados embaixo de cada campo.
-- **Buscar vagas:** vagas reais coletadas pelo motor do backend (Greenhouse e Adzuna), com busca por cargo ou empresa e filtros de local, modo, nível e contrato. Cada cartão mostra a fonte ("via ...") e quando a vaga sai da busca ("Expira em N dias"). **Ver vaga** abre o link original e **Salvar** copia a vaga para Vagas salvas, onde ela não expira.
-- **Vagas salvas:** lista com busca por cargo ou empresa, indicadores e formulário com **Gravar** e **Limpar Campos**, além de editar e excluir.
-- **Candidaturas:** quadro por status (Candidatadas, Em processo, Propostas, Encerradas), com busca e formulário com **Gravar** e **Limpar Campos**, além de editar e excluir. Criar ou editar uma candidatura atualiza o status da vaga.
+- **Buscar vagas:** vagas reais coletadas pelo motor do backend (Greenhouse e Adzuna), com busca por cargo ou empresa e filtros de local, modo, nível e contrato na lateral esquerda (no celular, acima da lista). Cada cartão mostra a fonte ("via ...") e quando a vaga sai da busca ("Expira em N dias"). **Visualizar** abre os Detalhes da vaga e **Salvar** copia a vaga para Vagas salvas, onde ela não expira.
+- **Detalhes da vaga:** a vaga completa dentro do WatchJobs, sem sair do app: descrição dividida em seções (sobre a vaga, o que você vai fazer, requisitos, diferenciais, benefícios), skills obrigatórias e desejáveis e outras informações da fonte. Tem **Salvar vaga** e **Acessar página original** (o link do anúncio).
+- **Vagas salvas:** lista com busca por cargo ou empresa, indicadores e formulário com **Gravar** e **Limpar Campos**, além de editar e excluir. Na edição de uma vaga salva pela busca, aparecem também a descrição, as skills e as demais informações que vieram da fonte.
+- **Candidaturas:** quadro com as colunas **Vagas salvas** (vagas ainda sem candidatura), Candidatadas, Em processo, Propostas e Encerradas, com busca e formulário com **Gravar** e **Limpar Campos**, além de editar e excluir. Tocar num cartão da coluna Vagas salvas abre a edição da vaga. Criar ou editar uma candidatura atualiza o status da vaga.
 
 ### 4.1 Vaga salva × candidatura: qual é a diferença?
 
@@ -54,11 +55,11 @@ São duas etapas diferentes da busca por emprego, por isso cada uma tem a sua ab
 | Pergunta que responde | "Que vaga é essa?" | "Como está indo a minha candidatura?" |
 | O que se preenche | Cargo, empresa, link, local, modo de trabalho, nível, contrato, faixa salarial e anotações | Etapa (Triagem → Proposta), status, data de início e de término, próxima entrevista, notas e feedback da empresa |
 | Quando é criada | Assim que você encontra a vaga (botão **+ Nova vaga**) | Só quando você se candidata a uma vaga **já salva** (**+ Nova candidatura** ou **Candidatar-se** na lista de vagas) |
-| Como aparece | Lista com busca, faixa salarial e etiquetas de status | Quadro com colunas Candidatadas, Em processo, Propostas e Encerradas |
+| Como aparece | Lista com busca, faixa salarial e etiquetas de status; sem candidatura, também na coluna Vagas salvas do quadro | Quadro com colunas Candidatadas, Em processo, Propostas e Encerradas |
 
 **Como as duas se relacionam (1 vaga → no máximo 1 candidatura):**
 
-1. **Salve a vaga.** Ela aparece em **Vagas salvas** com o status "Salva" ou "Planejando se candidatar".
+1. **Salve a vaga.** Ela aparece em **Vagas salvas** e na primeira coluna do quadro de **Candidaturas**, com o status "Salva" ou "Planejando se candidatar".
 2. **Candidate-se.** No formulário de candidatura, só aparecem as vagas que ainda não têm candidatura. Ao gravar, a vaga ganha a etiqueta "Com candidatura" e passa para "Candidatado".
 3. **Acompanhe o processo.** Editar a candidatura (etapa, entrevista, status) também atualiza o status da vaga. Mudar para "Em processo" move o cartão para a coluna seguinte do quadro.
 4. **Exclua a candidatura.** A vaga continua salva e volta para "Salva".
@@ -177,7 +178,7 @@ Como este repositório atende à **Parte 2 (frontend, 2,0 pontos)** e aos crité
 - [x] **Kotlin Multiplatform + Compose Multiplatform para Android, Desktop e Web:** as telas, o estado e a lógica ficam no código comum (`shared/src/commonMain`). Cada plataforma tem o próprio módulo: [`androidApp/`](androidApp), [`desktopApp/`](desktopApp) e [`webApp/`](webApp) (Wasm). O HTTP e o armazenamento do token são nativos de cada plataforma, por `expect`/`actual`, sem Ktor.
 
 - [x] **2a. Entidades do projeto (0,5):** duas entidades do integrante, cada uma com mais de 5 propriedades além do id e pelo menos 2 tipos da lista além do tipo do id.
-  - [`SavedJob`](shared/src/commonMain/kotlin/com/watchjobs/model/SavedJob.kt): 16 propriedades além do id (`Long`). Tipos **String** (cargo, empresa, URL, local, moeda, notas), **Double** (`salaryMin`, `salaryMax`) e **LocalDateTime** (`savedAt`, `statusUpdatedAt`).
+  - [`SavedJob`](shared/src/commonMain/kotlin/com/watchjobs/model/SavedJob.kt): 21 propriedades além do id (`Long`). Tipos **String** (cargo, empresa, URL, local, moeda, notas, descrição), **Double** (`salaryMin`, `salaryMax`), **LocalDateTime** (`savedAt`, `statusUpdatedAt`) e **List** (`skills`).
   - [`Application`](shared/src/commonMain/kotlin/com/watchjobs/model/Application.kt): 11 propriedades além do id (`Int`). Tipos **String** (status, notas, feedback), **Int** (`stageId`), **LocalDate** (`startDate`, `endDate`) e **LocalDateTime** (`interviewAt`).
   - As duas são `@Serializable` (kotlinx.serialization) e usam as datas do kotlinx-datetime. Os enums têm rótulos em português.
 
@@ -190,7 +191,7 @@ Como este repositório atende à **Parte 2 (frontend, 2,0 pontos)** e aos crité
     - Os erros de validação do backend (400) aparecem embaixo de cada campo.
   - Cada entidade tem também a sua lista, com busca, edição e exclusão com confirmação:
     - [`SavedJobListScreen`](shared/src/commonMain/kotlin/com/watchjobs/ui/savedjob/SavedJobListScreen.kt).
-    - [`ApplicationListScreen`](shared/src/commonMain/kotlin/com/watchjobs/ui/application/ApplicationListScreen.kt), em formato de quadro por status.
+    - [`ApplicationListScreen`](shared/src/commonMain/kotlin/com/watchjobs/ui/application/ApplicationListScreen.kt), em formato de quadro por status, com a coluna Vagas salvas para as vagas ainda sem candidatura.
   - O cadastro de usuário ([`SignupScreen`](shared/src/commonMain/kotlin/com/watchjobs/ui/auth/AuthScreens.kt)) também tem **Cadastrar** e **Limpar Campos**.
 
 - [x] **Integração com o backend da Parte 1:**

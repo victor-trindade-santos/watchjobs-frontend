@@ -13,8 +13,14 @@ import com.watchjobs.data.remote.createHttpTransport
 import com.watchjobs.data.remote.platformDemoMode
 import com.watchjobs.data.repository.ApplicationRepository
 import com.watchjobs.data.repository.AuthRepository
+import com.watchjobs.data.repository.BoardRepository
+import com.watchjobs.data.repository.CatalogRepository
+import com.watchjobs.data.repository.FeedQuery
+import com.watchjobs.data.repository.FeedRepository
 import com.watchjobs.data.repository.JobSearchQuery
 import com.watchjobs.data.repository.JobSearchRepository
+import com.watchjobs.data.repository.NotificationRepository
+import com.watchjobs.data.repository.ProfileRepository
 import com.watchjobs.data.repository.SavedJobRepository
 
 // Injeção de dependências manual: cria uma vez o cliente HTTP, o armazenamento e os repositórios.
@@ -31,7 +37,15 @@ class AppContainer(
     val savedJobRepository = SavedJobRepository(api)
     val applicationRepository = ApplicationRepository(api)
     val jobSearchRepository = JobSearchRepository(api)
+    val profileRepository = ProfileRepository(api)
+    val catalogRepository = CatalogRepository(api)
+    val feedRepository = FeedRepository(api)
+    val notificationRepository = NotificationRepository(api)
+    val boardRepository = BoardRepository(api)
 
     // Última busca em "Buscar vagas", para voltar dos Detalhes da vaga com os mesmos filtros.
     var jobSearchQuery = JobSearchQuery()
+
+    // Filtros da página de vagas: continuam os mesmos ao abrir uma vaga e voltar.
+    var feedQuery = FeedQuery()
 }

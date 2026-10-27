@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.watchjobs.model.ExperienceLevel
 import com.watchjobs.model.JobDetail
 import com.watchjobs.model.JobType
+import com.watchjobs.model.MatchResult
 import com.watchjobs.model.WorkMode
 import com.watchjobs.ui.components.Breadcrumb
 import com.watchjobs.ui.components.ErrorBanner
@@ -43,7 +44,9 @@ fun JobDetailScreen(
     viewModel: JobDetailViewModel,
     onBack: () -> Unit,
     onOpenSaved: (Long?) -> Unit,
-    showMessage: (String) -> Unit
+    showMessage: (String) -> Unit,
+    backLabel: String = "Buscar vagas",
+    onInteracted: (String) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val detail = state.detail
@@ -51,7 +54,7 @@ fun JobDetailScreen(
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 20.dp)) {
         PageContainer {
             Breadcrumb(
-                "Buscar vagas",
+                backLabel,
                 detail?.let { "${it.job.organizationName} / ${it.job.title}" } ?: "Detalhes da vaga",
                 onBack
             )
@@ -68,6 +71,7 @@ fun JobDetailScreen(
                             onSave = { viewModel.save(showMessage) },
                             onOpenSaved = { onOpenSaved(state.savedJobId) },
                             onOpenSource = showMessage,
+                            onInteract = { type -> viewModel.interact(type, showMessage) { onInteracted(type) } },
                             modifier = modifier
                         )
                     }
@@ -131,17 +135,32 @@ private fun DetailActions(
     onSave: () -> Unit,
     onOpenSaved: () -> Unit,
     onOpenSource: (String) -> Unit,
+    onInteract: (String) -> Unit,
     modifier: Modifier
 ) {
     val job = detail.job
+    val match = detail.match
     val uriHandler = LocalUriHandler.current
     Column(modifier.background(WatchJobsColors.White).border(1.dp, WatchJobsColors.Border)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                salaryRange(job.salaryMin, job.salaryMax, job.salaryCurrency) ?: "Salário não informado",
-                style = MaterialTheme.typography.headlineMedium,
-                color = WatchJobsColors.Ink
-            )
+            if (match != null) {
+                SectionLabel("Nota para o seu perfil", color = WatchJobsColors.Muted)
+                Text(
+                    formatScore(match.score),
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = WatchJobsColors.Red,
+                    modifier = Modifier.testTag("matchScore")
+                )
+                salaryRange(job.salaryMin, job.salaryMax, job.salaryCurrency)?.let {
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = WatchJobsColors.Ink)
+                }
+            } else {
+                Text(
+                    salaryRange(job.salaryMin, job.salaryMax, job.salaryCurrency) ?: "Salário não informado",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = WatchJobsColors.Ink
+                )
+            }
             SectionLabel(job.expiresLabel, color = WatchJobsColors.Muted)
             Hairline()
             PrimaryButton(
@@ -167,6 +186,14 @@ private fun DetailActions(
                 style = MaterialTheme.typography.bodySmall,
                 color = WatchJobsColors.Muted
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GhostButton("Dispensar", { onInteract("DISMISSED") }, Modifier.testTag("dismissJob"))
+                GhostButton("Ocultar", { onInteract("HIDDEN") }, Modifier.testTag("hideJob"))
+            }
+        }
+        if (match != null) {
+            Hairline()
+            MatchBreakdown(match, Modifier.padding(18.dp))
         }
         Hairline()
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -183,4 +210,46 @@ private fun DetailActions(
 private fun isoDateToBr(iso: String): String {
     val parts = iso.take(10).split("-")
     return if (parts.size == 3) "${parts[2]}/${parts[1]}/${parts[0]}" else iso
+}
+
+fun formatScore(score: Double): String {
+    val tenths = kotlin.math.round(score * 10).toLong()
+    return if (tenths % 10 == 0L) "${tenths / 10}" else "${tenths / 10},${tenths % 10}"
+}
+
+// O porquê da nota: cada critério, os pontos e as skills que faltam.
+@Composable
+fun MatchBreakdown(match: MatchResult, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionLabel("Por que esta nota")
+        match.criteria.filter { it.applicable }.forEach { criterion ->
+            Row(Modifier.fillMaxWidth()) {
+                Column(Modifier.weight(1f)) {
+                    Text(criterion.label, style = MaterialTheme.typography.bodyMedium, color = WatchJobsColors.Ink)
+                    Text(
+                        criterion.detail + if (criterion.inferred) " · deduzido do perfil" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = WatchJobsColors.Muted
+                    )
+                }
+                Text(
+                    "${formatScore(criterion.points)}/${criterion.weight}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = WatchJobsColors.Ink
+                )
+            }
+        }
+        val skipped = match.criteria.filterNot { it.applicable }.map { it.label }
+        if (skipped.isNotEmpty()) {
+            Text(
+                "Fora do cálculo (sem dado): ${skipped.joinToString()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = WatchJobsColors.Muted
+            )
+        }
+        if (match.missingSkills.isNotEmpty()) {
+            SectionLabel("Skills que faltam", color = WatchJobsColors.Muted)
+            Text(match.missingSkills.joinToString(", "), style = MaterialTheme.typography.bodyMedium, color = WatchJobsColors.RedDark)
+        }
+    }
 }

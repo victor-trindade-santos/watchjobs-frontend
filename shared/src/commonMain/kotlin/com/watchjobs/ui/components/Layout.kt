@@ -3,6 +3,8 @@ package com.watchjobs.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -42,7 +45,8 @@ import com.watchjobs.ui.theme.WatchJobsColors
 enum class MainTab(val label: String) {
     JOB_SEARCH("Buscar vagas"),
     SAVED_JOBS("Vagas salvas"),
-    APPLICATIONS("Candidaturas")
+    APPLICATIONS("Candidaturas"),
+    PROFILE("Perfil")
 }
 
 // Barra de topo das telas internas, no estilo dos protótipos: logo, abas com sublinhado vermelho e o usuário.
@@ -53,6 +57,9 @@ fun MainScaffold(
     onTabSelected: (MainTab) -> Unit,
     onLogout: () -> Unit,
     onDeleteAccount: () -> Unit = {},
+    tabs: List<MainTab> = MainTab.entries,
+    unreadCount: Long? = null,
+    onNotifications: () -> Unit = {},
     content: @Composable ColumnScope.() -> Unit
 ) {
     Column(Modifier.fillMaxSize().background(WatchJobsColors.Background)) {
@@ -66,9 +73,13 @@ fun MainScaffold(
                     WatchJobsLogo()
                     if (!compact) {
                         Spacer(Modifier.width(36.dp))
-                        Tabs(currentTab, onTabSelected, Modifier.fillMaxHeight())
+                        Tabs(tabs, currentTab, onTabSelected, Modifier.fillMaxHeight())
                     }
                     Spacer(Modifier.weight(1f))
+                    if (unreadCount != null) {
+                        NotificationBell(unreadCount, onNotifications)
+                        Spacer(Modifier.width(10.dp))
+                    }
                     Box(
                         Modifier.size(32.dp).background(WatchJobsColors.Ink),
                         contentAlignment = Alignment.Center
@@ -80,7 +91,12 @@ fun MainScaffold(
                     GhostButton("Sair", onLogout, modifier = Modifier.testTag("logoutButton"))
                 }
                 if (compact) {
-                    Tabs(currentTab, onTabSelected, Modifier.height(44.dp).padding(horizontal = 16.dp))
+                    Tabs(
+                        tabs,
+                        currentTab,
+                        onTabSelected,
+                        Modifier.height(44.dp).horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp)
+                    )
                 }
                 Hairline()
             }
@@ -89,10 +105,26 @@ fun MainScaffold(
     }
 }
 
+// Sininho com o número de avisos não lidos (F5-07).
 @Composable
-private fun Tabs(current: MainTab, onSelected: (MainTab) -> Unit, modifier: Modifier) {
+private fun NotificationBell(unread: Long, onClick: () -> Unit) {
+    Box(Modifier.size(36.dp).clickable(onClick = onClick).testTag("notificationBell"), contentAlignment = Alignment.Center) {
+        Icon(Icons.Default.Notifications, contentDescription = "Avisos", tint = WatchJobsColors.Ink)
+        if (unread > 0) {
+            Box(
+                Modifier.align(Alignment.TopEnd).background(WatchJobsColors.Red).padding(horizontal = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(if (unread > 99) "99+" else unread.toString(), style = MaterialTheme.typography.labelSmall, color = WatchJobsColors.White)
+            }
+        }
+    }
+}
+
+@Composable
+private fun Tabs(tabs: List<MainTab>, current: MainTab, onSelected: (MainTab) -> Unit, modifier: Modifier) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-        MainTab.entries.forEach { tab ->
+        tabs.forEach { tab ->
             val active = tab == current
             Column(
                 Modifier.fillMaxHeight().width(IntrinsicSize.Max).clickable { onSelected(tab) }.testTag("tab_${tab.name}"),

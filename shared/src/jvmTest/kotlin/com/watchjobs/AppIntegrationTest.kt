@@ -61,6 +61,22 @@ class AppIntegrationTest {
         onAllNodesWithText(text, substring = true, useUnmergedTree = true).fetchSemanticsNodes().isEmpty()
     }
 
+    // No celular as abas rolam na horizontal; na tela larga não há rolagem.
+    private fun ComposeUiTest.openTab(tab: String) {
+        waitForTag("tab_$tab")
+        runCatching { onNodeWithTag("tab_$tab").performScrollTo() }
+        onNodeWithTag("tab_$tab").performClick()
+    }
+
+    // Fora do modo demonstração, "Candidaturas" abre o Kanban; a lista fica em "Ver em lista".
+    private fun ComposeUiTest.openApplicationList(container: AppContainer) {
+        openTab("APPLICATIONS")
+        if (!container.demoMode) {
+            waitForTag("applicationsList")
+            onNodeWithTag("applicationsList").performClick()
+        }
+    }
+
     private fun ComposeUiTest.waitForTag(tag: String) = waitUntil(timeoutMillis = 15_000) {
         onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
     }
@@ -139,6 +155,7 @@ class AppIntegrationTest {
                 waitForText("E-mail ou senha inválidos")
                 fill("loginPassword", "senha1234")
                 onNodeWithTag("loginButton").performClick()
+                openTab("SAVED_JOBS")
                 waitForText("Nenhuma vaga salva ainda")
                 shot("04-vagas-vazia")
 
@@ -180,7 +197,7 @@ class AppIntegrationTest {
                     listOf(ferrolane.id, halden.id)
                 }
 
-                onNodeWithTag("tab_APPLICATIONS").performClick()
+                openApplicationList(container)
                 waitForText("Staff Product Designer, Payments")
                 onNodeWithTag("tab_SAVED_JOBS").performClick()
                 waitForText("Head of Design")
@@ -194,7 +211,7 @@ class AppIntegrationTest {
                 waitForText("5 vagas")
 
                 // Nova candidatura pelo formulário.
-                onNodeWithTag("tab_APPLICATIONS").performClick()
+                openApplicationList(container)
                 waitForText("Staff Product Designer, Payments")
                 onNodeWithTag("newApplication").performClick()
                 waitForText("Só aparecem as vagas")
@@ -289,9 +306,10 @@ class AppIntegrationTest {
         runDesktopComposeUiTest(width = 412, height = 900) {
             withFailureShot("ERRO-celular") {
                 setContent { App(container) }
+                openTab("SAVED_JOBS")
                 waitForText("Desenvolvedor Kotlin")
                 shot("22-celular-vagas")
-                onNodeWithTag("tab_APPLICATIONS").performClick()
+                openApplicationList(container)
                 waitForText("Toque em um cartão")
                 waitForText("Desenvolvedor Kotlin")
                 shot("23-celular-candidaturas")

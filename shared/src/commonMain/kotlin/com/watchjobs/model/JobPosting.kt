@@ -57,5 +57,6 @@ data class JobDetail(
     val job: JobPosting,
     val description: String? = null,
     val skills: List<JobSkill> = emptyList(),
-    val corpusStatus: String = "ACTIVE"
+    val corpusStatus: String = "ACTIVE",
+    val match: MatchResult? = null
 )

@@ -34,6 +34,7 @@ import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.watchjobs.data.remote.FakeBackendTransport
+import com.watchjobs.data.repository.FeedQuery
 import com.watchjobs.data.repository.JobSearchQuery
 import com.watchjobs.ui.application.ApplicationFormScreen
 import com.watchjobs.ui.application.ApplicationListScreen
@@ -59,6 +60,21 @@ import com.watchjobs.viewmodel.LoginViewModel
 import com.watchjobs.viewmodel.SavedJobFormViewModel
 import com.watchjobs.viewmodel.SavedJobListViewModel
 import com.watchjobs.viewmodel.SignupViewModel
+import com.watchjobs.ui.board.BoardScreen
+import com.watchjobs.ui.feed.DiscoverScreen
+import com.watchjobs.ui.feed.FeedScreen
+import com.watchjobs.ui.notification.NotificationsScreen
+import com.watchjobs.ui.profile.LinkedInImportScreen
+import com.watchjobs.ui.profile.PreferencesScreen
+import com.watchjobs.ui.profile.ProfileScreen
+import com.watchjobs.viewmodel.BoardViewModel
+import com.watchjobs.viewmodel.DiscoverViewModel
+import com.watchjobs.viewmodel.FeedViewModel
+import com.watchjobs.viewmodel.LinkedInImportViewModel
+import com.watchjobs.viewmodel.NotificationsViewModel
+import com.watchjobs.viewmodel.PreferencesViewModel
+import com.watchjobs.viewmodel.ProfileViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 // Navegação por estado simples: a tela atual fica numa variável e um "when" decide o que mostrar.
@@ -72,14 +88,24 @@ sealed interface Screen {
     data class ApplicationForm(val id: Int? = null, val savedJobId: Long? = null) : Screen
     data object JobSearch : Screen
     data class JobDetail(val id: Long) : Screen
+    data class Discover(val id: Long? = null) : Screen
+    data object Notifications : Screen
+    data object Profile : Screen
+    data class Preferences(val autoFill: Boolean = false) : Screen
+    data object LinkedInImport : Screen
+    data object Board : Screen
 }
+
+// Tela inicial após o login: as vagas por match (no modo demonstração, só existe o escopo da prova).
+private fun AppContainer.home(): Screen = if (demoMode) Screen.SavedJobs else Screen.JobSearch
 
 @Composable
 fun App(container: AppContainer = remember { AppContainer() }) {
     WatchJobsTheme {
         var screen by remember {
-            mutableStateOf<Screen>(if (container.authRepository.isLoggedIn()) Screen.SavedJobs else Screen.Login())
+            mutableStateOf<Screen>(if (container.authRepository.isLoggedIn()) container.home() else Screen.Login())
         }
+        var unread by remember { mutableStateOf(0L) }
         val snackbarHostState = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()
         val navigate: (Screen, String?) -> Unit = { target, message ->
@@ -97,11 +123,24 @@ fun App(container: AppContainer = remember { AppContainer() }) {
             container.api.sessionExpired.collect { navigate(Screen.Login(), "Sua sessão expirou. Entre novamente.") }
         }
 
+        // Sininho: consulta os avisos não lidos a cada minuto enquanto o usuário está logado.
+        val loggedIn = screen !is Screen.Login && screen !is Screen.Signup && screen !is Screen.ForgotPassword
+        val refreshUnread: () -> Unit = {
+            scope.launch { runCatching { container.notificationRepository.unreadCount() }.onSuccess { unread = it } }
+        }
+        LaunchedEffect(loggedIn) {
+            if (!loggedIn || container.demoMode) return@LaunchedEffect
+            while (true) {
+                runCatching { container.notificationRepository.unreadCount() }.onSuccess { unread = it }
+                delay(60_000)
+            }
+        }
+
         Box(Modifier.fillMaxSize().background(WatchJobsColors.Background).windowInsetsPadding(WindowInsets.safeDrawing)) {
             Column(Modifier.fillMaxSize()) {
                 if (container.demoMode) DemoBanner()
                 ScreenHost(screen) { current ->
-                    AppScreen(current, container, navigate, scope)
+                    AppScreen(current, container, navigate, scope, unread, refreshUnread)
                 }
             }
             SnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter).padding(20.dp)) { data ->
@@ -116,13 +155,17 @@ private fun AppScreen(
     current: Screen,
     container: AppContainer,
     navigate: (Screen, String?) -> Unit,
-    scope: kotlinx.coroutines.CoroutineScope
+    scope: kotlinx.coroutines.CoroutineScope,
+    unread: Long,
+    refreshUnread: () -> Unit
 ) {
     var showDeleteAccount by remember { mutableStateOf(false) }
+    val demo = container.demoMode
+    val applicationsHome: Screen = if (demo) Screen.Applications else Screen.Board
     when (current) {
         is Screen.Login -> LoginScreen(
             viewModel = viewModel { LoginViewModel(container.authRepository, current.email) },
-            onLoggedIn = { navigate(Screen.SavedJobs, null) },
+            onLoggedIn = { navigate(container.home(), null) },
             onCreateAccount = { navigate(Screen.Signup, null) },
             onForgotPassword = { navigate(Screen.ForgotPassword(current.email), null) }
         )
@@ -139,22 +182,28 @@ private fun AppScreen(
         else -> MainScaffold(
             initials = container.authRepository.currentUser()?.initials ?: "?",
             currentTab = when (current) {
-                is Screen.Applications, is Screen.ApplicationForm -> MainTab.APPLICATIONS
-                is Screen.JobSearch, is Screen.JobDetail -> MainTab.JOB_SEARCH
+                is Screen.Applications, is Screen.ApplicationForm, is Screen.Board -> MainTab.APPLICATIONS
+                is Screen.JobSearch, is Screen.JobDetail, is Screen.Discover, is Screen.Notifications -> MainTab.JOB_SEARCH
+                is Screen.Profile, is Screen.Preferences, is Screen.LinkedInImport -> MainTab.PROFILE
                 else -> MainTab.SAVED_JOBS
             },
             onTabSelected = { tab ->
                 val target = when (tab) {
                     MainTab.JOB_SEARCH -> Screen.JobSearch
                     MainTab.SAVED_JOBS -> Screen.SavedJobs
-                    MainTab.APPLICATIONS -> Screen.Applications
+                    MainTab.APPLICATIONS -> applicationsHome
+                    MainTab.PROFILE -> Screen.Profile
                 }
                 navigate(target, null)
             },
+            tabs = if (demo) listOf(MainTab.JOB_SEARCH, MainTab.SAVED_JOBS, MainTab.APPLICATIONS) else MainTab.entries,
+            unreadCount = if (demo) null else unread,
+            onNotifications = { navigate(Screen.Notifications, null) },
             onLogout = {
                 scope.launch {
                     container.authRepository.logout()
                     container.jobSearchQuery = JobSearchQuery()
+                    container.feedQuery = FeedQuery()
                     navigate(Screen.Login(), "Você saiu da conta.")
                 }
             },
@@ -190,18 +239,72 @@ private fun AppScreen(
                     onCancel = { navigate(Screen.Applications, null) },
                     onNewSavedJob = { navigate(Screen.SavedJobForm(), null) }
                 )
-                Screen.JobSearch -> JobSearchScreen(
-                    viewModel = viewModel {
-                        JobSearchViewModel(container.jobSearchRepository, container.jobSearchQuery) { container.jobSearchQuery = it }
-                    },
-                    onView = { id -> navigate(Screen.JobDetail(id), null) },
-                    showMessage = { message -> navigate(Screen.JobSearch, message) }
-                )
+                Screen.JobSearch -> if (demo) {
+                    JobSearchScreen(
+                        viewModel = viewModel {
+                            JobSearchViewModel(container.jobSearchRepository, container.jobSearchQuery) { container.jobSearchQuery = it }
+                        },
+                        onView = { id -> navigate(Screen.JobDetail(id), null) },
+                        showMessage = { message -> navigate(Screen.JobSearch, message) }
+                    )
+                } else {
+                    FeedScreen(
+                        viewModel = viewModel {
+                            FeedViewModel(container.feedRepository, container.jobSearchRepository, container.feedQuery) { container.feedQuery = it }
+                        },
+                        onView = { id -> navigate(Screen.JobDetail(id), null) },
+                        onDiscover = { navigate(Screen.Discover(), null) },
+                        onPreferences = { navigate(Screen.Preferences(), null) },
+                        showMessage = { message -> navigate(Screen.JobSearch, message) }
+                    )
+                }
                 is Screen.JobDetail -> JobDetailScreen(
-                    viewModel = viewModel { JobDetailViewModel(current.id, container.jobSearchRepository) },
+                    viewModel = viewModel {
+                        JobDetailViewModel(current.id, container.jobSearchRepository, if (demo) null else container.feedRepository)
+                    },
                     onBack = { navigate(Screen.JobSearch, null) },
                     onOpenSaved = { savedId -> navigate(savedId?.let { Screen.SavedJobForm(it) } ?: Screen.SavedJobs, null) },
+                    showMessage = { message -> navigate(current, message) },
+                    onInteracted = { message -> navigate(Screen.JobSearch, message) }
+                )
+                is Screen.Discover -> DiscoverScreen(
+                    viewModel = viewModel { DiscoverViewModel(container.feedRepository, container.profileRepository, current.id) },
+                    onView = { id -> navigate(Screen.JobDetail(id), null) },
+                    onBack = { navigate(Screen.JobSearch, null) }
+                )
+                Screen.Notifications -> NotificationsScreen(
+                    viewModel = viewModel { NotificationsViewModel(container.notificationRepository) },
+                    onOpenSearch = { id -> navigate(Screen.Discover(id), null) },
+                    onOpenFeed = { navigate(Screen.JobSearch, null) },
+                    onCountChanged = refreshUnread,
+                    showMessage = { message -> navigate(Screen.Notifications, message) }
+                )
+                Screen.Profile -> ProfileScreen(
+                    viewModel = viewModel { ProfileViewModel(container.profileRepository, container.catalogRepository) },
+                    onPreferences = { navigate(Screen.Preferences(), null) },
+                    onImport = { navigate(Screen.LinkedInImport, null) },
+                    onSearchJobs = { navigate(Screen.JobSearch, null) },
+                    showMessage = { message -> navigate(Screen.Profile, message) }
+                )
+                is Screen.Preferences -> PreferencesScreen(
+                    viewModel = viewModel { PreferencesViewModel(container.profileRepository, container.catalogRepository, current.autoFill) },
+                    onBack = { navigate(Screen.Profile, null) },
+                    onSaved = { message -> navigate(Screen.JobSearch, message) },
                     showMessage = { message -> navigate(current, message) }
+                )
+                Screen.LinkedInImport -> LinkedInImportScreen(
+                    viewModel = viewModel { LinkedInImportViewModel(container.profileRepository) },
+                    onBack = { navigate(Screen.Profile, null) },
+                    onApplied = { message, reviewPreferences ->
+                        navigate(if (reviewPreferences) Screen.Preferences(autoFill = true) else Screen.Profile, message)
+                    }
+                )
+                Screen.Board -> BoardScreen(
+                    viewModel = viewModel { BoardViewModel(container.boardRepository) },
+                    onOpenSavedJob = { id -> navigate(Screen.SavedJobForm(id), null) },
+                    onNewSavedJob = { navigate(Screen.SavedJobForm(), null) },
+                    onOpenList = { navigate(Screen.Applications, null) },
+                    showMessage = { message -> navigate(Screen.Board, message) }
                 )
                 else -> Unit
             }

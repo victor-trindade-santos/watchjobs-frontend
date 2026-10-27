@@ -86,6 +86,43 @@ class ApiClient(
 
     private fun canRefresh(path: String): Boolean = !isPublic(path) && tokenStorage.refreshToken() != null
 
+    // Envio de um arquivo (multipart/form-data), com a mesma renovação de sessão das outras rotas.
+    suspend fun upload(path: String, field: String, fileName: String, contentType: String, bytes: ByteArray): String {
+        val boundary = "----WatchJobs" + bytes.size + "x" + fileName.hashCode().toUInt()
+        val body = multipartBody(boundary, field, fileName, contentType, bytes)
+        suspend fun sendOnce(token: String?): HttpResult {
+            val headers = buildMap {
+                put("Accept", "application/json")
+                put("Content-Type", "multipart/form-data; boundary=$boundary")
+                if (token != null) put("Authorization", "Bearer $token")
+            }
+            return try {
+                transport.sendBytes("POST", baseUrl + path, headers, body)
+            } catch (ex: CancellationException) {
+                throw ex
+            } catch (ex: UnsupportedOperationException) {
+                throw ApiException(0, ApiError("UNSUPPORTED", ex.message ?: "Envio de arquivos não disponível."))
+            } catch (ex: Exception) {
+                throw ApiException(0, ApiError("NETWORK_ERROR", "Não foi possível conectar ao servidor ($baseUrl)."))
+            }
+        }
+        val sentToken = tokenStorage.token()
+        val response = sendOnce(sentToken)
+        if (response.status in 200..299) return response.body
+        if (response.status == 401 && canRefresh(path)) {
+            val refreshed = refreshMutex.withLock {
+                val latest = tokenStorage.token()
+                if (sentToken != null && latest != null && latest != sentToken) true else refreshSession()
+            }
+            if (refreshed) {
+                val retry = sendOnce(tokenStorage.token())
+                if (retry.status in 200..299) return retry.body
+                fail(retry, clearSession = retry.status == 401)
+            }
+        }
+        fail(response, clearSession = response.status == 401 && sentToken != null)
+    }
+
     private fun isPublic(path: String): Boolean =
         path == "/signin" || path == "/signup" || path == "/auth/refresh" || path.startsWith("/password/")
 

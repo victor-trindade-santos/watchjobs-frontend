@@ -3,6 +3,7 @@ package com.watchjobs.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.watchjobs.data.remote.ApiException
+import com.watchjobs.data.repository.FeedRepository
 import com.watchjobs.data.repository.JobSearchQuery
 import com.watchjobs.data.repository.JobSearchRepository
 import com.watchjobs.model.ExperienceLevel
@@ -125,8 +126,12 @@ data class JobDetailState(
     val error: String? = null
 )
 
-// Detalhes da vaga do corpus, exibidos dentro do WatchJobs (GET /jobs/{id}).
-class JobDetailViewModel(private val id: Long, private val repository: JobSearchRepository) : ViewModel() {
+// Detalhes da vaga do corpus, exibidos dentro do WatchJobs (GET /jobs/{id}), com a nota a partir da F4.
+class JobDetailViewModel(
+    private val id: Long,
+    private val repository: JobSearchRepository,
+    private val feed: FeedRepository? = null
+) : ViewModel() {
     private val mutableState = MutableStateFlow(JobDetailState())
     val state: StateFlow<JobDetailState> = mutableState.asStateFlow()
 
@@ -134,6 +139,16 @@ class JobDetailViewModel(private val id: Long, private val repository: JobSearch
         viewModelScope.launchRequest(onError = { ex -> mutableState.update { it.copy(loading = false, error = ex.generalMessage()) } }) {
             val detail = repository.detail(id)
             mutableState.update { it.copy(detail = detail, loading = false) }
+        }
+    }
+
+    // Dispensar ou ocultar tira a vaga do feed.
+    fun interact(type: String, showMessage: (String) -> Unit, onDone: () -> Unit) {
+        val repository = feed ?: return
+        viewModelScope.launchRequest(onError = { showMessage(it.generalMessage()) }) {
+            repository.interact(id, type)
+            showMessage(if (type == "HIDDEN") "Vaga ocultada do feed." else "Vaga dispensada.")
+            onDone()
         }
     }
 
