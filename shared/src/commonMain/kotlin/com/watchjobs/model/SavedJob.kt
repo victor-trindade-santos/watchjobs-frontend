@@ -20,7 +20,9 @@ data class SavedJob(
     val salaryCurrency: String? = null,
     val status: SavedJobStatus = SavedJobStatus.SAVED,
     val notes: String? = null,
+    @Serializable(with = LenientLocalDateTimeSerializer::class)
     val savedAt: LocalDateTime? = null,
+    @Serializable(with = LenientLocalDateTimeSerializer::class)
     val statusUpdatedAt: LocalDateTime? = null,
     // Conteúdo copiado da vaga ao salvar pela busca (só no GET /saved-jobs/{id}).
     val fullDescription: String? = null,

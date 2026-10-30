@@ -2,6 +2,7 @@ package com.watchjobs.data.dto
 
 import com.watchjobs.model.ExperienceLevel
 import com.watchjobs.model.JobType
+import com.watchjobs.model.LenientLocalDateTimeSerializer
 import com.watchjobs.model.SavedJobStatus
 import com.watchjobs.model.User
 import com.watchjobs.model.WorkMode
@@ -60,6 +61,7 @@ data class SignupRequest(
 data class AuthResponse(
     val token: String,
     val tokenType: String = "Bearer",
+    @Serializable(with = LenientLocalDateTimeSerializer::class)
     val expiresAt: LocalDateTime,
     val user: User,
     val refreshToken: String = ""

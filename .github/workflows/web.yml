@@ -27,7 +27,7 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :webApp:wasmJsBrowserDistribution -Pwatchjobs.apiUrl=${{ vars.API_URL }} --no-daemon
+      - run: bash ./gradlew :webApp:wasmJsBrowserDistribution -Pwatchjobs.apiUrl=${{ vars.API_URL }} --no-daemon
       - uses: actions/upload-pages-artifact@v3
         with:
           path: webApp/build/dist/wasmJs/productionExecutable

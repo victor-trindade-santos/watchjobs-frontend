@@ -17,7 +17,8 @@ jobs:
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
       # Os testes de UI que precisam do backend se ignoram sozinhos quando ele não está no ar.
-      - run: ./gradlew :shared:jvmTest :desktopApp:compileKotlin :webApp:compileKotlinWasmJs :androidApp:assembleDebug --no-daemon
+      # bash, não ./gradlew: o bit de execução se perde em commits feitos no Windows.
+      - run: bash ./gradlew :shared:jvmTest :desktopApp:compileKotlin :webApp:compileKotlinWasmJs :androidApp:assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
