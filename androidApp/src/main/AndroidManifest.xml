@@ -3,6 +3,8 @@
 
     <!-- Sem INTERNET e usesCleartextTraffic, o Android bloqueia o http:// e a chamada falha sem mensagem clara. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Push dos avisos (Android 13+ pede permissão em tempo de execução). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -19,6 +21,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name="com.watchjobs.push.WatchJobsMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

@@ -108,7 +108,8 @@ class SignupViewModel(private val authRepository: AuthRepository) : ViewModel() 
 
     fun clear() = mutableState.update { SignupState() }
 
-    fun submit(onSuccess: (email: String) -> Unit) {
+    // Depois do cadastro, entra direto com as mesmas credenciais (sem pedir a senha de novo).
+    fun submit(onSuccess: (email: String, loggedIn: Boolean) -> Unit) {
         val form = state.value.form
         val birthDate = parseBrDate(form.birthDate)
         if (birthDate == null) {
@@ -130,8 +131,9 @@ class SignupViewModel(private val authRepository: AuthRepository) : ViewModel() 
                     confirmPassword = form.confirmPassword
                 )
             )
+            val loggedIn = runCatching { authRepository.signin(SigninRequest(user.email, form.password)) }.isSuccess
             mutableState.update { it.copy(loading = false) }
-            onSuccess(user.email)
+            onSuccess(user.email, loggedIn)
         }
     }
 }

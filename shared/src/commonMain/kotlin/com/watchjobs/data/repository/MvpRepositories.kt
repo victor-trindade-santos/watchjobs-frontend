@@ -2,6 +2,16 @@ package com.watchjobs.data.repository
 
 import com.watchjobs.data.remote.ApiClient
 import com.watchjobs.data.remote.ApiJson
+import com.watchjobs.model.Analytics
+import com.watchjobs.model.BaseResume
+import com.watchjobs.model.DocumentDetail
+import com.watchjobs.model.DocumentSummary
+import com.watchjobs.model.DocumentsStatus
+import com.watchjobs.model.EditDocumentRequest
+import com.watchjobs.model.ExportFile
+import com.watchjobs.model.ExportFormat
+import com.watchjobs.model.GenerateDocumentRequest
+import com.watchjobs.model.VersionContent
 import com.watchjobs.model.ApplyImportRequest
 import com.watchjobs.model.Board
 import com.watchjobs.model.BoardCard
@@ -23,6 +33,7 @@ import com.watchjobs.model.LevelCorrection
 import com.watchjobs.model.MoveRequest
 import com.watchjobs.model.NotificationPage
 import com.watchjobs.model.NotificationPreference
+import com.watchjobs.model.OnboardingStatus
 import com.watchjobs.model.OrganizationOption
 import com.watchjobs.model.Personal
 import com.watchjobs.model.PersonalRequest
@@ -31,8 +42,11 @@ import com.watchjobs.model.PreferencesRequest
 import com.watchjobs.model.PreferencesSuggestion
 import com.watchjobs.model.Profile
 import com.watchjobs.model.ProfileImport
+import com.watchjobs.model.ProfileSetupStatus
+import com.watchjobs.model.SetupStepRequest
 import com.watchjobs.model.ProfileStats
 import com.watchjobs.model.ProfileSummary
+import com.watchjobs.model.PushDeviceRequest
 import com.watchjobs.model.RoleFamilyOption
 import com.watchjobs.model.SkillOption
 import com.watchjobs.model.TimelineEvent
@@ -101,6 +115,18 @@ class ProfileRepository(private val api: ApiClient) {
     suspend fun applyImport(id: Long, refs: List<String>): ProfileImport = api.post("/profile/import/$id/apply", ApplyImportRequest(refs))
 
     suspend fun discardImport(id: Long) = api.delete("/profile/import/$id")
+
+    suspend fun setupStatus(): ProfileSetupStatus = api.get("/profile/setup")
+
+    suspend fun saveSetupStep(step: String): ProfileSetupStatus = api.put("/profile/setup/step", SetupStepRequest(step))
+
+    suspend fun completeSetup(): ProfileSetupStatus =
+        ApiJson.decodeFromString(ProfileSetupStatus.serializer(), api.request("POST", "/profile/setup/complete", null))
+
+    suspend fun onboarding(): OnboardingStatus = api.get("/profile/onboarding")
+
+    suspend fun completeOnboarding(): OnboardingStatus =
+        ApiJson.decodeFromString(OnboardingStatus.serializer(), api.request("POST", "/profile/onboarding/complete", null))
 }
 
 class CatalogRepository(private val api: ApiClient) {
@@ -188,7 +214,7 @@ class FeedRepository(private val api: ApiClient) {
 }
 
 class NotificationRepository(private val api: ApiClient) {
-    suspend fun list(page: Int = 0): NotificationPage = api.get("/notifications?page=$page&size=30")
+    suspend fun list(page: Int = 0, size: Int = 30): NotificationPage = api.get("/notifications?page=$page&size=$size")
     suspend fun unreadCount(): Long = api.get<UnreadCount>("/notifications/unread-count").unread
     suspend fun markRead(id: Long) {
         api.request("POST", "/notifications/$id/read", null)
@@ -199,6 +225,12 @@ class NotificationRepository(private val api: ApiClient) {
     suspend fun preference(): NotificationPreference = api.get("/notifications/preferences")
     suspend fun savePreference(preference: NotificationPreference): NotificationPreference =
         api.put("/notifications/preferences", preference)
+    suspend fun registerDevice(token: String) {
+        api.request("POST", "/notifications/devices", ApiJson.encodeToString(PushDeviceRequest(token)))
+    }
+    suspend fun unregisterDevice(token: String) {
+        api.request("POST", "/notifications/devices/remove", ApiJson.encodeToString(PushDeviceRequest(token)))
+    }
 }
 
 // Kanban (F6). Mover usa POST, alias de PATCH aceito pelo backend.
@@ -206,4 +238,27 @@ class BoardRepository(private val api: ApiClient) {
     suspend fun board(): Board = api.get("/saved-jobs/board")
     suspend fun move(id: Long, request: MoveRequest): BoardCard = api.post("/saved-jobs/$id/move", request)
     suspend fun timeline(id: Long): List<TimelineEvent> = api.get("/saved-jobs/$id/timeline")
+}
+
+// Analytics de candidaturas (F09).
+class AnalyticsRepository(private val api: ApiClient) {
+    suspend fun analytics(weeks: Int): Analytics = api.get("/analytics?weeks=$weeks")
+}
+
+// Currículo adaptado e cover letter por vaga (F10).
+class DocumentRepository(private val api: ApiClient) {
+    suspend fun status(): DocumentsStatus = api.get("/documents/status")
+    suspend fun list(savedJobId: Long? = null): List<DocumentSummary> =
+        api.get("/documents" + (savedJobId?.let { "?savedJobId=$it" } ?: ""))
+    suspend fun generate(request: GenerateDocumentRequest): DocumentDetail = api.post("/documents/generate", request)
+    suspend fun detail(id: Long): DocumentDetail = api.get("/documents/$id")
+    suspend fun edit(id: Long, content: String): DocumentDetail = api.put("/documents/$id", EditDocumentRequest(content))
+    suspend fun version(id: Long, version: Int): VersionContent = api.get("/documents/$id/versions/$version")
+    suspend fun restore(id: Long, version: Int): DocumentDetail =
+        ApiJson.decodeFromString(DocumentDetail.serializer(), api.request("POST", "/documents/$id/versions/$version/restore", null))
+    suspend fun delete(id: Long) = api.delete("/documents/$id")
+    suspend fun export(id: Long, format: ExportFormat, version: Int? = null): ExportFile =
+        api.get("/documents/$id/export?format=${format.name}" + (version?.let { "&version=$it" } ?: ""))
+    suspend fun baseResume(): BaseResume = api.get("/documents/base-resume")
+    suspend fun exportBase(format: ExportFormat): ExportFile = api.get("/documents/base-resume/export?format=${format.name}")
 }

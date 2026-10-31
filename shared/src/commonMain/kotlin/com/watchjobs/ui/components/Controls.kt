@@ -76,15 +76,15 @@ fun PrimaryButton(
         shape = RectangleShape,
         colors = ButtonDefaults.buttonColors(
             containerColor = WatchJobsColors.Red,
-            contentColor = WatchJobsColors.White,
+            contentColor = WatchJobsColors.OnAccent,
             disabledContainerColor = WatchJobsColors.Red.copy(alpha = 0.5f),
-            disabledContentColor = WatchJobsColors.White
+            disabledContentColor = WatchJobsColors.OnAccent
         ),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
         modifier = modifier.heightIn(min = 42.dp)
     ) {
         if (loading) {
-            CircularProgressIndicator(color = WatchJobsColors.White, strokeWidth = 2.dp, modifier = Modifier.height(16.dp).width(16.dp))
+            CircularProgressIndicator(color = WatchJobsColors.OnAccent, strokeWidth = 2.dp, modifier = Modifier.height(16.dp).width(16.dp))
             Spacer(Modifier.width(10.dp))
         }
         Text(text, style = MaterialTheme.typography.labelLarge)
@@ -275,7 +275,7 @@ fun Tag(text: String, modifier: Modifier = Modifier, filled: Boolean = false) {
         Text(
             text,
             style = MaterialTheme.typography.bodySmall,
-            color = if (filled) WatchJobsColors.White else WatchJobsColors.RedDark
+            color = if (filled) WatchJobsColors.OnAccent else WatchJobsColors.RedDark
         )
     }
 }

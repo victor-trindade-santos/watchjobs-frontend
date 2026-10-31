@@ -67,6 +67,7 @@ import com.watchjobs.ui.components.ConfirmDialog
 import com.watchjobs.ui.components.CheckIcon
 import com.watchjobs.ui.components.DropdownField
 import com.watchjobs.ui.components.ErrorBanner
+import com.watchjobs.ui.components.ExpandableText
 import com.watchjobs.ui.components.GhostButton
 import com.watchjobs.ui.components.Hairline
 import com.watchjobs.ui.components.LabeledTextField
@@ -84,6 +85,9 @@ import com.watchjobs.util.salaryRange
 import com.watchjobs.util.toBr
 import com.watchjobs.viewmodel.ProfileViewModel
 import kotlinx.datetime.LocalDate
+
+// Mesmo limite do backend (core.users.professional_objective).
+internal const val SUMMARY_MAX = 10000
 
 private sealed interface ProfileDialog {
     data object Personal : ProfileDialog
@@ -103,7 +107,8 @@ fun ProfileScreen(
     onPreferences: () -> Unit,
     onImport: () -> Unit,
     onSearchJobs: () -> Unit,
-    showMessage: (String) -> Unit
+    showMessage: (String) -> Unit,
+    onDeleteAccount: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     var dialog by remember { mutableStateOf<ProfileDialog?>(null) }
@@ -174,6 +179,7 @@ fun ProfileScreen(
                         PreferencesCard(profile.preferences, onPreferences)
                         StatsCard(state.stats)
                         SummaryCard(profile.summary) { level -> viewModel.correctLevel(level, done("Senioridade atualizada.")) }
+                        AccountCard(onDeleteAccount)
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(32.dp)) {
                         ProfileHeader(profile, onEdit = { dialog = ProfileDialog.Personal }, onResume = { dialog = ProfileDialog.Resume }, onSearchJobs = onSearchJobs)
@@ -210,6 +216,19 @@ fun ProfileScreen(
             onConfirm = { current.action(done("Excluído.")) },
             onDismiss = { dialog = null }
         )
+    }
+}
+
+// Gerenciamento da conta: a exclusão pede a senha atual (validada no backend) e confirmação explícita.
+@Composable
+private fun AccountCard(onDeleteAccount: () -> Unit) {
+    Panel("Gerenciamento da conta") {
+        Text(
+            "Excluir a conta apaga o perfil, as vagas salvas, as candidaturas e os avisos. Não dá para desfazer.",
+            style = MaterialTheme.typography.bodySmall,
+            color = WatchJobsColors.Muted
+        )
+        GhostButton("Excluir conta", onDeleteAccount, Modifier.testTag("deleteAccountButton"), color = WatchJobsColors.RedDark)
     }
 }
 
@@ -278,9 +297,12 @@ private fun ProfileHeader(profile: Profile, onEdit: () -> Unit, onResume: () -> 
                 }
                 val objective = personal.objective?.takeIf { it.isNotBlank() }
                 if (objective != null) {
-                    Text(objective, style = MaterialTheme.typography.bodyLarge, color = WatchJobsColors.Ink, modifier = Modifier.padding(top = 6.dp))
+                    ExpandableText(
+                        objective, Modifier.padding(top = 6.dp), collapsedLines = 4,
+                        style = MaterialTheme.typography.bodyLarge, tag = "profileSummary"
+                    )
                 } else {
-                    GhostButton("Adicionar objetivo profissional", onEdit, Modifier.testTag("addObjective"))
+                    GhostButton("Adicionar resumo profissional", onEdit, Modifier.testTag("addObjective"))
                 }
             }
         }
@@ -350,7 +372,7 @@ private fun ExperienceTimeline(
                     Text(exp.jobTitle, style = MaterialTheme.typography.titleMedium, color = WatchJobsColors.Ink)
                     Text(exp.organizationName, style = MaterialTheme.typography.bodyMedium, color = WatchJobsColors.Muted)
                     exp.description?.takeIf { it.isNotBlank() }?.let {
-                        Text(it, style = MaterialTheme.typography.bodyMedium, color = WatchJobsColors.Ink, maxLines = 5, overflow = TextOverflow.Ellipsis)
+                        ExpandableText(it, collapsedLines = 5, tag = "experienceDescription_${exp.id}")
                     }
                     if (technologies.isNotEmpty()) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -644,7 +666,8 @@ private fun PersonalDialog(viewModel: ProfileViewModel, profile: com.watchjobs.m
     }, onDismiss = onDismiss) {
         LabeledTextField("Nome", first, { first = it })
         LabeledTextField("Sobrenome", last, { last = it })
-        LabeledTextField("Objetivo profissional", objective, { objective = it.take(500) }, singleLine = false, minLines = 3, tag = "personalObjective")
+        LabeledTextField("Resumo profissional", objective, { objective = it.take(SUMMARY_MAX) }, singleLine = false, minLines = 5, tag = "personalObjective")
+        Text("${objective.length}/$SUMMARY_MAX", style = MaterialTheme.typography.bodySmall, color = WatchJobsColors.Muted)
         DropdownField("Disponibilidade", Availability.entries, availability, { it.label }, { availability = it }, emptyLabel = "Não informar", tag = "personalAvailability")
         LabeledTextField("Cidade", city, { city = it })
         LabeledTextField("Estado", region, { region = it }, placeholder = "SP")
@@ -653,7 +676,7 @@ private fun PersonalDialog(viewModel: ProfileViewModel, profile: com.watchjobs.m
 }
 
 @Composable
-private fun ExperienceDialog(viewModel: ProfileViewModel, item: Experience?, onResult: (String?) -> Unit, onDismiss: () -> Unit) {
+internal fun ExperienceDialog(viewModel: ProfileViewModel, item: Experience?, onResult: (String?) -> Unit, onDismiss: () -> Unit) {
     val state by viewModel.state.collectAsState()
     var title by remember { mutableStateOf(item?.jobTitle.orEmpty()) }
     var company by remember { mutableStateOf(item?.organizationName.orEmpty()) }
@@ -719,7 +742,7 @@ private fun EducationDialog(viewModel: ProfileViewModel, item: Education?, onRes
 }
 
 @Composable
-private fun SkillDialog(viewModel: ProfileViewModel, item: UserSkill?, onResult: (String?) -> Unit, onDismiss: () -> Unit) {
+internal fun SkillDialog(viewModel: ProfileViewModel, item: UserSkill?, onResult: (String?) -> Unit, onDismiss: () -> Unit) {
     val state by viewModel.state.collectAsState()
     var picked by remember { mutableStateOf(item?.let { SkillOption(it.skillId, it.skillName) }) }
     var query by remember { mutableStateOf(item?.skillName.orEmpty()) }

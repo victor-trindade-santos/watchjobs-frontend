@@ -1,0 +1,238 @@
+#
+# There is insufficient memory for the Java Runtime Environment to continue.
+# Native memory allocation (malloc) failed to allocate 1048576 bytes. Error detail: AllocateHeap
+# Possible reasons:
+#   The system is out of physical RAM or swap space
+#   This process is running with CompressedOops enabled, and the Java Heap may be blocking the growth of the native heap
+# Possible solutions:
+#   Reduce memory load on the system
+#   Increase physical memory or swap space
+#   Check if swap backing store is full
+#   Decrease Java heap size (-Xmx/-Xms)
+#   Decrease number of Java threads
+#   Decrease Java thread stack sizes (-Xss)
+#   Set larger code cache with -XX:ReservedCodeCacheSize=
+#   JVM is running with Unscaled Compressed Oops mode in which the Java heap is
+#     placed in the first 4GB address space. The Java Heap base address is the
+#     maximum limit for the native heap growth. Please use -XX:HeapBaseMinAddress
+#     to set the Java Heap base and to place the Java Heap above 4GB virtual address.
+# This output file may be truncated or incomplete.
+#
+#  Out of Memory Error (allocation.cpp:44), pid=5924, tid=22888
+#
+# JRE version:  (24.0+36) (build )
+# Java VM: Java HotSpot(TM) 64-Bit Server VM (24+36-3646, mixed mode, sharing, tiered, compressed oops, compressed class ptrs, g1 gc, windows-amd64)
+# No core dump will be written. Minidumps are not enabled by default on client versions of Windows
+#
+
+---------------  S U M M A R Y ------------
+
+Command Line: -Dorg.gradle.internal.worker.tmpdir=C:\tcc\watchjobs-frontend\shared\build\tmp\jvmTest\work -Xmx512m -Dfile.encoding=UTF-8 -Duser.country=BR -Duser.language=pt -Duser.variant -ea worker.org.gradle.process.internal.worker.GradleWorkerMain 'Gradle Test Executor 6'
+
+Host: AMD Ryzen 5 7520U with Radeon Graphics         , 8 cores, 7G,  Windows 11 , 64 bit Build 26100 (10.0.26100.9444)
+Time: Fri Oct 30 18:27:39 2026 Hora oficial do Brasil elapsed time: 0.021910 seconds (0d 0h 0m 0s)
+
+---------------  T H R E A D  ---------------
+
+Current thread (0x000002c387725490):  JavaThread "Unknown thread" [_thread_in_vm, id=22888, stack(0x000000ee68f00000,0x000000ee69000000) (1024K)]
+
+Stack: [0x000000ee68f00000,0x000000ee69000000]
+Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+V  [jvm.dll+0x7308c9]  (no source info available)
+V  [jvm.dll+0x8d9ca3]  (no source info available)
+V  [jvm.dll+0x8dc13d]  (no source info available)
+V  [jvm.dll+0x8dc7b3]  (no source info available)
+V  [jvm.dll+0x2aa046]  (no source info available)
+V  [jvm.dll+0xbe977]  (no source info available)
+V  [jvm.dll+0x3668c5]  (no source info available)
+V  [jvm.dll+0x35de01]  (no source info available)
+V  [jvm.dll+0x89d41f]  (no source info available)
+V  [jvm.dll+0x3f98fd]  (no source info available)
+V  [jvm.dll+0x885a76]  (no source info available)
+V  [jvm.dll+0x49604e]  (no source info available)
+V  [jvm.dll+0x497e21]  (no source info available)
+C  [jli.dll+0x52a1]  (no source info available)
+C  [ucrtbase.dll+0x2cd30]  (no source info available)
+C  [KERNEL32.DLL+0x2cd87]  (no source info available)
+C  [ntdll.dll+0xacaec]  (no source info available)
+
+Lock stack of current Java thread (top to bottom):
+
+
+---------------  P R O C E S S  ---------------
+
+Threads class SMR info:
+_java_thread_list=0x00007ffbb6e9f318, length=0, elements={
+}
+
+Java Threads: ( => current thread )
+Total: 0
+
+Other Threads:
+  0x000002c387753f10 WorkerThread "GC Thread#0"                     [id=23524, stack(0x000000ee69000000,0x000000ee69100000) (1024K)]
+
+[error occurred during error reporting (printing all threads), id 0xc0000005, EXCEPTION_ACCESS_VIOLATION (0xc0000005) at pc=0x00007ffbb65cbd70]
+VM state: not at safepoint (not fully initialized)
+
+VM Mutex/Monitor currently owned by a thread:  ([mutex/lock_event])
+[0x00007ffbb6f245c0] Heap_lock - owner thread: 0x000002c387725490
+
+Heap address: 0x00000000e0000000, size: 512 MB, Compressed Oops mode: 32-bit
+
+CDS archive(s) mapped at: [0x0000000000000000-0x0000000000000000-0x0000000000000000), size 0, SharedBaseAddress: 0x0000000800000000, ArchiveRelocationMode: 1.
+UseCompressedClassPointers 1, UseCompactObjectHeaders 0
+Narrow klass pointer bits 32, Max shift 3
+Narrow klass base: 0xffffffffffffffff, Narrow klass shift: -1
+Encoding Range: [0xffffffffffffffff - 0x000000007fffffff), (2147483648 bytes)
+Klass Range:    [0x0000000000000000 - 0x0000000000000000), (0 bytes)
+Klass ID Range:  [4294967295 - 0) (1)
+
+GC Precious Log:
+ CardTable entry size: 512
+ Card Set container configuration: InlinePtr #cards 5 size 8 Array Of Cards #cards 10 size 36 Howl #buckets 4 coarsen threshold 1843 Howl Bitmap #cards 512 size 80 coarsen threshold 460 Card regions per heap region 1 cards per card region 2048
+
+Heap:
+ garbage-first heap   total reserved 524288K, committed 0K, used 0K [0x00000000e0000000, 0x0000000100000000)
+  region size 1024K, 0 young (0K), 0 survivors (0K)
+
+[error occurred during error reporting (printing heap information), id 0xc0000005, EXCEPTION_ACCESS_VIOLATION (0xc0000005) at pc=0x00007ffbb69ee579]
+GC Heap History (0 events):
+No events
+
+Dll operation events (1 events):
+Event: 0.016 Loaded shared library C:\Program Files\Java\jdk-24\bin\java.dll
+
+Deoptimization events (0 events):
+No events
+
+Classes loaded (0 events):
+No events
+
+Classes unloaded (0 events):
+No events
+
+Classes redefined (0 events):
+No events
+
+Internal exceptions (0 events):
+No events
+
+VM Operations (0 events):
+No events
+
+Memory protections (0 events):
+No events
+
+Nmethod flushes (0 events):
+No events
+
+Events (0 events):
+No events
+
+
+Dynamic libraries:
+0x00007ff74d5e0000 - 0x00007ff74d5f0000 	C:\Program Files\Java\jdk-24\bin\java.exe
+0x00007ffcaf080000 - 0x00007ffcaf2e7000 	C:\WINDOWS\SYSTEM32\ntdll.dll
+0x00007ffcaec40000 - 0x00007ffcaed0b000 	C:\WINDOWS\System32\KERNEL32.DLL
+0x00007ffcac550000 - 0x00007ffcac952000 	C:\WINDOWS\System32\KERNELBASE.dll
+0x00007ffcac280000 - 0x00007ffcac3cc000 	C:\WINDOWS\System32\ucrtbase.dll
+0x00007ffc84bf0000 - 0x00007ffc84c0b000 	C:\Program Files\Java\jdk-24\bin\VCRUNTIME140.dll
+0x00007ffc966b0000 - 0x00007ffc966c6000 	C:\Program Files\Java\jdk-24\bin\jli.dll
+0x00007ffcad000000 - 0x00007ffcad1cf000 	C:\WINDOWS\System32\USER32.dll
+0x00007ffc93b70000 - 0x00007ffc93e00000 	C:\WINDOWS\WinSxS\amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0.26100.9278_none_3e0d1ba8e3303201\COMCTL32.dll
+0x00007ffcae150000 - 0x00007ffcae1f9000 	C:\WINDOWS\System32\msvcrt.dll
+0x00007ffcac470000 - 0x00007ffcac497000 	C:\WINDOWS\System32\win32u.dll
+0x00007ffcaeeb0000 - 0x00007ffcaeedb000 	C:\WINDOWS\System32\GDI32.dll
+0x00007ffcacbb0000 - 0x00007ffcaccd9000 	C:\WINDOWS\System32\gdi32full.dll
+0x00007ffcac4a0000 - 0x00007ffcac543000 	C:\WINDOWS\System32\msvcp_win.dll
+0x00007ffcae110000 - 0x00007ffcae141000 	C:\WINDOWS\System32\IMM32.DLL
+0x00007ffc94d90000 - 0x00007ffc94d9c000 	C:\Program Files\Java\jdk-24\bin\vcruntime140_1.dll
+0x00007ffc3ed20000 - 0x00007ffc3edae000 	C:\Program Files\Java\jdk-24\bin\msvcp140.dll
+0x00007ffbb6260000 - 0x00007ffbb7002000 	C:\Program Files\Java\jdk-24\bin\server\jvm.dll
+0x00007ffcace20000 - 0x00007ffcacedc000 	C:\WINDOWS\System32\ADVAPI32.dll
+0x00007ffcad1e0000 - 0x00007ffcad289000 	C:\WINDOWS\System32\sechost.dll
+0x00007ffcaea60000 - 0x00007ffcaeb78000 	C:\WINDOWS\System32\RPCRT4.dll
+0x00007ffcad7c0000 - 0x00007ffcad840000 	C:\WINDOWS\System32\WS2_32.dll
+0x00007ffcac0e0000 - 0x00007ffcac13e000 	C:\WINDOWS\SYSTEM32\POWRPROF.dll
+0x00007ffca1bb0000 - 0x00007ffca1be6000 	C:\WINDOWS\SYSTEM32\WINMM.dll
+0x00007ffc9eaf0000 - 0x00007ffc9eafb000 	C:\WINDOWS\SYSTEM32\VERSION.dll
+0x00007ffcac0c0000 - 0x00007ffcac0d5000 	C:\WINDOWS\SYSTEM32\UMPDC.dll
+0x00007ffcaaf50000 - 0x00007ffcaaf6b000 	C:\WINDOWS\SYSTEM32\kernel.appcore.dll
+0x00007ffc86640000 - 0x00007ffc8664a000 	C:\Program Files\Java\jdk-24\bin\jimage.dll
+0x00007ffc9c050000 - 0x00007ffc9c29c000 	C:\WINDOWS\SYSTEM32\DBGHELP.DLL
+0x00007ffcad430000 - 0x00007ffcad7b5000 	C:\WINDOWS\System32\combase.dll
+0x00007ffcadb40000 - 0x00007ffcadc19000 	C:\WINDOWS\System32\OLEAUT32.dll
+0x00007ffc926b0000 - 0x00007ffc926eb000 	C:\WINDOWS\SYSTEM32\dbgcore.DLL
+0x00007ffcacce0000 - 0x00007ffcacd8c000 	C:\WINDOWS\System32\bcryptPrimitives.dll
+0x00007ffc82260000 - 0x00007ffc8227e000 	C:\Program Files\Java\jdk-24\bin\java.dll
+0x00007ffcad290000 - 0x00007ffcad42a000 	C:\WINDOWS\System32\ole32.dll
+0x00007ffcae250000 - 0x00007ffcae9e8000 	C:\WINDOWS\System32\SHELL32.dll
+
+dbghelp: loaded successfully - version: 4.0.5 - missing functions: none
+symbol engine: initialized successfully - sym options: 0x614 - pdb path: .;C:\Program Files\Java\jdk-24\bin;C:\WINDOWS\SYSTEM32;C:\WINDOWS\WinSxS\amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0.26100.9278_none_3e0d1ba8e3303201;C:\Program Files\Java\jdk-24\bin\server
+
+VM Arguments:
+jvm_args: -Dorg.gradle.internal.worker.tmpdir=C:\tcc\watchjobs-frontend\shared\build\tmp\jvmTest\work -Xmx512m -Dfile.encoding=UTF-8 -Duser.country=BR -Duser.language=pt -Duser.variant -ea 
+java_command: worker.org.gradle.process.internal.worker.GradleWorkerMain 'Gradle Test Executor 6'
+java_class_path (initial): C:\\Users\\victo\\.gradle\\caches\\9.8.1\\workerMain\\gradle-worker.jar;C:\\tcc\\watchjobs-frontend\\shared\\build\\classes\\kotlin\\jvm\\test;C:\\tcc\\watchjobs-frontend\\shared\\build\\processedResources\\jvm\\test;C:\\tcc\\watchjobs-frontend\\shared\\build\\classes\\kotlin\\jvm\\main;C:\\tcc\\watchjobs-frontend\\shared\\build\\processedResources\\jvm\\main;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.kotlin\\kotlin-test-junit\\2.4.10\\568b64c50af16b8bce7c9b374e223887dc226a4f\\kotlin-test-junit-2.4.10.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.kotlin\\kotlin-test\\2.4.10\\833ceeccc1f8669e9566039125139191526f9ea8\\kotlin-test-2.4.10.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.material3\\material3-desktop\\1.11.0-alpha07\\422cb57765628e3959d1e27ac46660593643296b\\material3-desktop-1.11.0-alpha07.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.desktop\\desktop-jvm\\1.11.1\\1fee826ff9d1fafd500b57a22facfc0236bc14c7\\desktop-jvm-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.material\\material-desktop\\1.11.1\\2891a6f3a62dc4c367636a521d1b680a7d6ff6d\\material-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.animation\\animation-core-desktop\\1.11.1\\1bf633ecd1a38a1cf7a41630bc56cba0da9cc25b\\animation-core-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.material\\material-ripple-desktop\\1.11.1\\ae97a5eeb23bc3f461bc3e16e2a9882175405d17\\material-ripple-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.animation\\animation-desktop\\1.11.1\\f873fb28f1a08d45a4dd20a0130b3da8cadf383c\\animation-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.foundation\\foundation-layout-desktop\\1.11.1\\853fc5d01388da6515ce40b719798914012f6469\\foundation-layout-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.foundation\\foundation-desktop\\1.11.1\\6df316e7af2c0c97f200de289925f62ca8fce53d\\foundation-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.material\\material-icons-core-desktop\\1.7.3\\414b3096050fe647b0638832eace80f22c06b85c\\material-icons-core-desktop-1.7.3.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.androidx.lifecycle\\lifecycle-viewmodel-compose-desktop\\2.10.0\\a59cd3cec34b5b7519ca3245b0d160dfd12a5891\\lifecycle-viewmodel-compose-desktop-2.10.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.ui\\ui-tooling-preview-desktop\\1.11.1\\97ec578d33adc34adcaa63e9af7bb2328c6c29b7\\ui-tooling-preview-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.ui\\ui-unit-desktop\\1.11.1\\f6c06f98da206d01dc40c1587c6bc4c40cbef623\\ui-unit-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.ui\\ui-graphics-desktop\\1.11.1\\6ea106d02adf29694eedf12fdfb621947d3621bf\\ui-graphics-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.ui\\ui-geometry-desktop\\1.11.1\\5e430152487375359973ac9874653d335dcc220\\ui-geometry-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.ui\\ui-backhandler-desktop\\1.11.1\\bd3540bb1d6abd60c5e58f32663b2f3e89406cd1\\ui-backhandler-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.ui\\ui-util-desktop\\1.11.1\\4302c582878b82ab24e1f34e6e90f967f7b416ed\\ui-util-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.ui\\ui-text-desktop\\1.11.1\\6ded685e2601260d6231c859a849b96ee6c60368\\ui-text-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.ui\\ui-test-desktop\\1.11.1\\af9676309d288e6786fcd931c15274a4d9a8fabe\\ui-test-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.ui\\ui-desktop\\1.11.1\\24c40c0d60c77a6fb34f930f13bfa4a3ff62c0f\\ui-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.skiko\\skiko-awt-runtime-windows-x64\\0.144.6\\6f04ac6776aa0cba95b4232e8e174bea5051c4fd\\skiko-awt-runtime-windows-x64-0.144.6.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.skiko\\skiko-awt\\0.144.6\\c9bec39e3c517ed5591c71c7db0cbbe64b6be849\\skiko-awt-0.144.6.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\androidx.navigationevent\\navigationevent-desktop\\1.0.1\\ddb1e7fe97ed51c3d35bba493f97fcf12398719\\navigationevent-desktop-1.0.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\androidx.compose.runtime\\runtime-annotation-jvm\\1.11.2\\db4aa964627ac96331b72e231b9ad54318d112f4\\runtime-annotation-jvm-1.11.2.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\androidx.compose.runtime\\runtime-retain-desktop\\1.11.2\\3aa3ec26ef2a3d26bc556b51b33d09efc1a198e8\\runtime-retain-desktop-1.11.2.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\androidx.compose.runtime\\runtime-saveable-desktop\\1.11.2\\1618fae89791692a224fe7aa79edbd7a8f5b7522\\runtime-saveable-desktop-1.11.2.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.runtime\\runtime-saveable-desktop\\1.11.1\\b7c8a8ed985a0f15b4d8d206de1fc6125b499388\\runtime-saveable-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\androidx.lifecycle\\lifecycle-runtime-desktop\\2.10.0\\fe39fe8e677652fd188c3cf1b1089a4c31bccd14\\lifecycle-runtime-desktop-2.10.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.androidx.savedstate\\savedstate-compose-desktop\\1.3.6\\63692375ffe667f12cb3ea8aa1e605d659ed2add\\savedstate-compose-desktop-1.3.6.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\androidx.savedstate\\savedstate-compose-desktop\\1.4.0\\d3d6e0e2108528eb6080dc250da925a572be4202\\savedstate-compose-desktop-1.4.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\androidx.savedstate\\savedstate-desktop\\1.4.0\\3b049a0f81643d6b4b900de95bc23efc085c32d5\\savedstate-desktop-1.4.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\androidx.lifecycle\\lifecycle-common-jvm\\2.10.0\\2b7a92c746f3339efc533a2da0024e596760f816\\lifecycle-common-jvm-2.10.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\androidx.lifecycle\\lifecycle-viewmodel-savedstate-desktop\\2.10.0\\ec55d21af7e860f55e1797163df33737473f211a\\lifecycle-viewmodel-savedstate-desktop-2.10.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\androidx.lifecycle\\lifecycle-viewmodel-desktop\\2.10.0\\8ff3a014a8c7e901085b76191cdbdfb4d9322cc2\\lifecycle-viewmodel-desktop-2.10.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\androidx.lifecycle\\lifecycle-runtime-compose-desktop\\2.10.0\\c277d78d334495bc70c976007a6fddb4c39ff65c\\lifecycle-runtime-compose-desktop-2.10.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.androidx.lifecycle\\lifecycle-runtime-compose-desktop\\2.9.6\\7b6b6793f3c4c5996b20d1d99cf728e5fac00364\\lifecycle-runtime-compose-desktop-2.9.6.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.compose.runtime\\runtime-desktop\\1.11.1\\1941336b045aac4b87cc3be81d9fdb9977c88c61\\runtime-desktop-1.11.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\androidx.compose.runtime\\runtime-desktop\\1.11.2\\e93d95553cdd86c1cb8c02f50260cc1c8e341da8\\runtime-desktop-1.11.2.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.kotlinx\\kotlinx-coroutines-test-jvm\\1.11.0\\1dfe8ce2b805d913922f283b386895bd0979dfcb\\kotlinx-coroutines-test-jvm-1.11.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.kotlinx\\kotlinx-coroutines-core-jvm\\1.11.0\\3d57dc678bd8d72a60e7adf0eca5c54e3f4f4b79\\kotlinx-coroutines-core-jvm-1.11.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.kotlinx\\kotlinx-coroutines-swing\\1.11.0\\3cf134b8aefd813622edc37e60d66b939b55cb36\\kotlinx-coroutines-swing-1.11.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.kotlinx\\kotlinx-serialization-core-jvm\\1.11.0\\c1905c9bf7452b045d5af9248835abe64ddad6bf\\kotlinx-serialization-core-jvm-1.11.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.kotlinx\\kotlinx-serialization-json-jvm\\1.11.0\\e7e045e99e56f07599bb9ccb708c2190e2af0606\\kotlinx-serialization-json-jvm-1.11.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.kotlinx\\kotlinx-datetime-jvm\\0.7.1\\81c2e0246bd28cc2dcbdf0ab53628322e66a9de9\\kotlinx-datetime-jvm-0.7.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\androidx.graphics\\graphics-shapes-desktop\\1.1.0\\a5d2198960bdc0915f74c6b2954d3323f35f40ea\\graphics-shapes-desktop-1.1.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\androidx.collection\\collection-jvm\\1.5.0\\7ba2c69414d46ebc2dd76598bdd0a75c54281a57\\collection-jvm-1.5.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.kotlinx\\atomicfu-jvm\\0.28.0\\6a9ac536f4b2144e57c176fd4e26821eb12084f4\\atomicfu-jvm-0.28.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\androidx.arch.core\\core-common\\2.2.0\\5e1b8b81dfd5f52c56a8d53b18ca759c19a301f3\\core-common-2.2.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\androidx.annotation\\annotation-jvm\\1.9.1\\b17951747e38bf3986a24431b9ba0d039958aa5f\\annotation-jvm-1.9.1.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.kotlin\\kotlin-stdlib\\2.4.10\\8943c84ddc6d5cc00a10dbc3736c397066eeaab5\\kotlin-stdlib-2.4.10.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains\\annotations\\23.0.0\\8cc20c07506ec18e0834947b84a864bfc094484e\\annotations-23.0.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jetbrains.runtime\\jbr-api\\1.9.0\\2bc161f5472b5fd5610740e4d6ebe896c811cb0e\\jbr-api-1.9.0.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\junit\\junit\\4.13.2\\8ac9e16d933b6fb43bc7f576336b8f4d7eb5ba12\\junit-4.13.2.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.hamcrest\\hamcrest-core\\1.3\\42a25dc3219429f0e5d060061f71acb49bf010a0\\hamcrest-core-1.3.jar;C:\\Users\\victo\\.gradle\\caches\\modules-2\\files-2.1\\org.jspecify\\jspecify\\1.0.0\\7425a601c1c7ec76645a78d22b8c6a627edee507\\jspecify-1.0.0.jar
+Launcher Type: SUN_STANDARD
+
+[Global flags]
+     intx CICompilerCount                          = 4                                         {product} {ergonomic}
+     uint ConcGCThreads                            = 2                                         {product} {ergonomic}
+     uint G1ConcRefinementThreads                  = 8                                         {product} {ergonomic}
+   size_t G1HeapRegionSize                         = 1048576                                   {product} {ergonomic}
+   size_t InitialHeapSize                          = 121634816                                 {product} {ergonomic}
+   size_t MarkStackSize                            = 4194304                                   {product} {ergonomic}
+   size_t MarkStackSizeMax                         = 536870912                                 {product} {ergonomic}
+   size_t MaxHeapSize                              = 536870912                                 {product} {command line}
+   size_t MinHeapDeltaBytes                        = 1048576                                   {product} {ergonomic}
+   size_t MinHeapSize                              = 8388608                                   {product} {ergonomic}
+    uintx NonNMethodCodeHeapSize                   = 5832704                                {pd product} {ergonomic}
+    uintx NonProfiledCodeHeapSize                  = 122945536                              {pd product} {ergonomic}
+    uintx ProfiledCodeHeapSize                     = 122880000                              {pd product} {ergonomic}
+    uintx ReservedCodeCacheSize                    = 251658240                              {pd product} {ergonomic}
+     bool SegmentedCodeCache                       = true                                      {product} {ergonomic}
+   size_t SoftMaxHeapSize                          = 536870912                              {manageable} {ergonomic}
+     bool UseCompressedOops                        = true                           {product lp64_product} {ergonomic}
+     bool UseG1GC                                  = true                                      {product} {ergonomic}
+     bool UseLargePagesIndividualAllocation        = false                                  {pd product} {ergonomic}
+
+Logging:
+Log output configuration:
+ #0: stdout all=warning uptime,level,tags foldmultilines=false
+ #1: stderr all=off uptime,level,tags foldmultilines=false
+
+Environment Variables:
+JAVA_HOME=C:\Program Files\Java\jdk-24
+PATH=C:\opt\kotlinc\bin;C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot\bin;C:\Program Files\Python-3.11.14\;C:\Program Files\Python-3.11.14\Scripts\;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\Java\jdk-24\bin;C:\Program Files\Git\cmd;C:\Program Files\dotnet\;C:\Program Files\GitHub CLI\;C:\Program Files\WSL\;C:\Users\victo\AppData\Local\hermes\node;C:\Users\victo\AppData\Local\hermes\bin;c:\Users\victo\AppData\Roaming\Code\User\globalStorage\github.copilot-chat\debugCommand;c:\Users\victo\AppData\Roaming\Code\User\globalStorage\github.copilot-chat\copilotCli;C:\Users\victo\AppData\Local\Programs\Microsoft VS Code;C:\Program Files\Python-3.11.14\;C:\Program Files\Python-3.11.14\Scripts\;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\Java\jdk-24\bin;C:\Program Files\Git\cmd;C:\Users\victo\AppData\Local\Microsoft\WindowsApps;C:\Users\victo\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\victo\GitHubDesktop\bin;C:\Users\victo\AppData\Local\Microsoft\WinGet\Packages\Schniz.fnm_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\victo\AppData\Roaming\npm;C:\apache-maven-3.9.11\bin;C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.5\bin;C:\Program Files\dotnet\dotnet.exe;C:\Program Files\dotnet;C:\Users\victo\AppData\Local\Python\bin;C:\Users\victo\AppData\Local\Microsoft\WindowsApps;C:\Users\victo\.bun\bin;C:\Users\victo\AppData\Local\Microsoft\WinGet\Packages\BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe\ripgrep-15.2.0-x86_64-pc-windows-msvc;C:\Users\victo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin;C:\Users\victo\AppData\Local\Programs\Cua\cua-driver\bin;C:\Users\victo\AppData\Local\Programs\DockerDesktop\resources\bin;c:\Users\victo\AppData\Local\Programs\Microsoft VS Code\e646868227\resources\app\node_modules.asar.unpacked\@vscode\ripgrep-universal\bin\win32-x64;c:\Users\victo\AppData\Local\Programs\Microsoft VS Code\e646868227\resources\app\node_modules.asar.unpacked\@github\copilot-sdk-win32-x64\ripgrep\bin\win32-x64
+USERNAME=victo
+OS=Windows_NT
+PROCESSOR_IDENTIFIER=AMD64 Family 23 Model 160 Stepping 0, AuthenticAMD
+TMP=C:\Users\victo\AppData\Local\Temp
+TEMP=C:\Users\victo\AppData\Local\Temp
+
+
+
+
+Periodic native trim disabled
+
+---------------  S Y S T E M  ---------------
+
+OS:
+ Windows 11 , 64 bit Build 26100 (10.0.26100.9444)
+OS uptime: 4 days 11:32 hours
+Hyper-V role detected
+
+CPU: total 8 (initial active 8) (8 cores per cpu, 2 threads per core) family 23 model 160 stepping 0 microcode 0x8a0000b, cx8, cmov, fxsr, ht, mmx, 3dnowpref, sse, sse2, sse3, ssse3, sse4a, sse4.1, sse4.2, popcnt, lzcnt, tsc, tscinvbit, avx, avx2, aes, clmul, bmi1, bmi2, adx, sha, fma, vzeroupper, clflush, clflushopt, hv, rdtscp, rdpid, f16c
+Processor Information for the first 8 processors :
+  Max Mhz: 2801, Current Mhz: 2483, Mhz Limit: 2801
+
+Memory: 4k page, system-wide physical 7413M (235M free)
+TotalPageFile size 29941M (AvailPageFile size 4M)
+current process WorkingSet (physical memory assigned to process): 13M, peak: 13M
+current process commit charge ("private bytes"): 53M, peak: 54M
+
+vm_info: Java HotSpot(TM) 64-Bit Server VM (24+36-3646) for windows-amd64 JRE (24+36-3646), built on 2025-02-06T00:20:43Z with MS VC++ 17.6 (VS2022)
+
+END.

@@ -12,6 +12,7 @@ import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -66,7 +67,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import com.watchjobs.model.BoardCard
 import com.watchjobs.model.BoardColumn
+import com.watchjobs.model.BoardEntry
+import com.watchjobs.model.BoardGrouping
+import com.watchjobs.model.BoardView
 import com.watchjobs.model.SavedJobStatus
+import com.watchjobs.model.SimpleBoardColumn
 import com.watchjobs.ui.components.ErrorBanner
 import com.watchjobs.ui.components.GhostButton
 import com.watchjobs.ui.components.Hairline
@@ -84,12 +89,21 @@ import kotlin.math.roundToInt
 
 private data class PendingMove(val cardId: Long, val column: BoardColumn, val beforeId: Long?, val afterId: Long?)
 
+// Coluna exibida: uma real (detalhada) ou um agrupamento (simplificada).
+private data class ColumnSpec(
+    val key: String,
+    val label: String,
+    val entries: List<BoardEntry>,
+    val real: BoardColumn? = null,
+    val simple: SimpleBoardColumn? = null
+)
+
 // Estado do arrasto. As posições estão em coordenadas da raiz da janela, para não depender da rolagem.
 private class DragState {
-    var card by mutableStateOf<BoardCard?>(null)
+    var entry by mutableStateOf<BoardEntry?>(null)
     var grab by mutableStateOf(Offset.Zero)
     var pointer by mutableStateOf(Offset.Zero)
-    var hover by mutableStateOf<BoardColumn?>(null)
+    var hover by mutableStateOf<String?>(null)
     var cardWidth by mutableStateOf(0)
 }
 
@@ -108,12 +122,20 @@ fun BoardScreen(
     val state by viewModel.state.collectAsState()
     var pendingOutcome by remember { mutableStateOf<PendingMove?>(null) }
     val drag = remember { DragState() }
-    val columnCoords = remember { mutableMapOf<BoardColumn, LayoutCoordinates>() }
+    val columnCoords = remember { mutableMapOf<String, LayoutCoordinates>() }
     val cardCoords = remember { mutableMapOf<Long, LayoutCoordinates>() }
     var boardCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var overlayCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val boardScroll = rememberScrollState()
     val scope = rememberCoroutineScope()
+    val detailed = state.view == BoardView.DETAILED
+
+    val specs = if (detailed) {
+        BoardColumn.entries.map { ColumnSpec(it.name, it.label, BoardGrouping.entries(state.board, it), real = it) }
+    } else {
+        SimpleBoardColumn.entries.map { ColumnSpec("simple_${it.name}", it.label, BoardGrouping.entries(state.board, it), simple = it) }
+    }
+    val liveSpecs by rememberUpdatedState(specs)
 
     fun requestMove(move: PendingMove, current: SavedJobStatus) {
         if (move.column == BoardColumn.CLOSED && current !in CLOSED_OUTCOMES) {
@@ -123,12 +145,27 @@ fun BoardScreen(
         }
     }
 
-    fun columnAt(point: Offset): BoardColumn? = columnCoords.entries.firstOrNull { (_, coords) ->
+    // Coluna real de destino; na simplificada, "Em processo seletivo" entra sempre em "Em análise".
+    fun targetOf(entry: BoardEntry, spec: ColumnSpec): BoardColumn? =
+        spec.real ?: spec.simple?.let { BoardGrouping.moveTarget(entry.column, it) }
+
+    fun keyOf(entry: BoardEntry): String =
+        if (detailed) entry.column.name else "simple_${SimpleBoardColumn.of(entry.column).name}"
+
+    fun moveToEnd(entry: BoardEntry, spec: ColumnSpec) {
+        val target = targetOf(entry, spec) ?: return
+        requestMove(PendingMove(entry.card.id, target, state.board.cards(target).lastOrNull { it.id != entry.card.id }?.id, null), entry.card.status)
+    }
+
+    fun columnAt(point: Offset): String? = columnCoords.entries.firstOrNull { (_, coords) ->
         coords.isAttached && Rect(coords.positionInRoot(), coords.size.toSize()).contains(point)
     }?.key
 
     // Vizinhos de cima e de baixo do ponto onde o card foi solto, na coluna de destino.
-    fun drop(card: BoardCard, target: BoardColumn) {
+    fun drop(entry: BoardEntry, spec: ColumnSpec) {
+        val target = targetOf(entry, spec) ?: return
+        if (spec.simple != null && !spec.simple.allowsReorder) return moveToEnd(entry, spec)
+        val card = entry.card
         val siblings = state.board.cards(target).filter { it.id != card.id }
         val centers = siblings.map { sibling ->
             cardCoords[sibling.id]?.takeIf { it.isAttached }?.let { it.positionInRoot().y + it.size.height / 2f } ?: Float.MAX_VALUE
@@ -140,15 +177,17 @@ fun BoardScreen(
     }
 
     // Perto da borda do quadro, rola na horizontal para alcançar as colunas que não cabem na tela.
-    LaunchedEffect(drag.card != null) {
-        while (drag.card != null) {
+    LaunchedEffect(drag.entry != null) {
+        while (drag.entry != null) {
             val board = boardCoords?.takeIf { it.isAttached }
             if (board != null) {
-                val left = board.positionInRoot().x
-                val right = left + board.size.width
-                when {
-                    drag.pointer.x < left + EDGE_SCROLL_ZONE -> boardScroll.scrollBy(-EDGE_SCROLL_STEP)
-                    drag.pointer.x > right - EDGE_SCROLL_ZONE -> boardScroll.scrollBy(EDGE_SCROLL_STEP)
+                if (detailed) {
+                    val left = board.positionInRoot().x
+                    val right = left + board.size.width
+                    when {
+                        drag.pointer.x < left + EDGE_SCROLL_ZONE -> boardScroll.scrollBy(-EDGE_SCROLL_STEP)
+                        drag.pointer.x > right - EDGE_SCROLL_ZONE -> boardScroll.scrollBy(EDGE_SCROLL_STEP)
+                    }
                 }
                 drag.hover = columnAt(drag.pointer)
             }
@@ -156,87 +195,116 @@ fun BoardScreen(
         }
     }
 
+    @Composable
+    fun ColumnCards(spec: ColumnSpec) {
+        spec.entries.forEach { entry ->
+            val card = entry.card
+            key(card.id) {
+                val current by rememberUpdatedState(entry)
+                val dragging = drag.entry?.card?.id == card.id
+                Box(
+                    Modifier
+                        .alpha(if (dragging) 0.35f else 1f)
+                        .onGloballyPositioned { cardCoords[card.id] = it }
+                        .mouseDrag(
+                            coords = { cardCoords[card.id] },
+                            onStart = { grab, width ->
+                                drag.entry = current
+                                drag.grab = grab
+                                drag.cardWidth = width
+                            },
+                            onMove = { root ->
+                                drag.pointer = root
+                                drag.hover = columnAt(root)
+                            },
+                            onEnd = {
+                                val target = liveSpecs.firstOrNull { it.key == drag.hover }
+                                if (target != null) drop(current, target)
+                                drag.entry = null
+                                drag.hover = null
+                            },
+                            onCancel = {
+                                drag.entry = null
+                                drag.hover = null
+                            }
+                        )
+                ) {
+                    KanbanCard(
+                        entry = entry,
+                        stageTag = !detailed,
+                        moveOptions = specs.filter { it.key != keyOf(entry) && targetOf(entry, it) != null },
+                        onOpen = { onOpenSavedJob(card.id) },
+                        onMove = { target -> moveToEnd(entry, target) },
+                        onTimeline = { viewModel.openTimeline(card.id) }
+                    )
+                }
+            }
+        }
+    }
+
+    @Composable
+    fun BoardColumnBox(spec: ColumnSpec, modifier: Modifier, scrollable: Boolean) {
+        val highlighted = drag.entry != null && drag.hover == spec.key
+        Column(
+            modifier
+                .background(if (highlighted) WatchJobsColors.RedSoft else WatchJobsColors.Surface)
+                .border(1.dp, if (highlighted) WatchJobsColors.Red else WatchJobsColors.Divider)
+                .onGloballyPositioned { columnCoords[spec.key] = it }
+                .testTag("column_${spec.key}")
+        ) {
+            Box(Modifier.fillMaxWidth().height(3.dp).background(WatchJobsColors.Red))
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                SectionLabel(spec.label, Modifier.weight(1f))
+                Text("${spec.entries.size}", style = MaterialTheme.typography.labelLarge, color = WatchJobsColors.Muted)
+            }
+            Hairline()
+            Column(
+                (if (scrollable) Modifier.fillMaxSize().verticalScroll(rememberScrollState()) else Modifier.fillMaxWidth()).padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ColumnCards(spec)
+            }
+        }
+    }
+
     Box(Modifier.fillMaxSize().onGloballyPositioned { overlayCoords = it }) {
         Column(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 20.dp)) {
-            PageHeader("Candidaturas", "Arraste os cards entre as colunas ou use o ícone de mover de cada card.") {
+            PageHeader(
+                "Candidaturas",
+                if (detailed) "Arraste os cards entre as colunas ou use o ícone de mover de cada card."
+                else "Visão resumida do processo. A etiqueta de cada card mostra a etapa real."
+            ) {
+                BoardViewSelector(state.view, viewModel::setView)
                 SecondaryButton("Nova vaga", onNewSavedJob)
                 GhostButton("Ver em lista", onOpenList, Modifier.testTag("applicationsList"))
                 GhostButton("Atualizar", viewModel::load)
-                GhostButton("‹", { scope.launch { boardScroll.animateScrollBy(-COLUMN_SCROLL) } }, Modifier.testTag("boardLeft"))
-                GhostButton("›", { scope.launch { boardScroll.animateScrollBy(COLUMN_SCROLL) } }, Modifier.testTag("boardRight"))
+                if (detailed) {
+                    GhostButton("‹", { scope.launch { boardScroll.animateScrollBy(-COLUMN_SCROLL) } }, Modifier.testTag("boardLeft"))
+                    GhostButton("›", { scope.launch { boardScroll.animateScrollBy(COLUMN_SCROLL) } }, Modifier.testTag("boardRight"))
+                }
             }
             state.error?.let { ErrorBanner(it, Modifier.padding(top = 12.dp)) }
             if (state.loading) {
                 LoadingBox()
                 return@Column
             }
-            Row(
-                Modifier.fillMaxSize().padding(top = 16.dp).onGloballyPositioned { boardCoords = it }.horizontalScroll(boardScroll),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                BoardColumn.entries.forEach { column ->
-                    val cards = state.board.cards(column)
-                    val highlighted = drag.card != null && drag.hover == column
-                    Column(
-                        Modifier.width(COLUMN_WIDTH).fillMaxHeight()
-                            .background(if (highlighted) WatchJobsColors.RedSoft else WatchJobsColors.Surface)
-                            .border(1.dp, if (highlighted) WatchJobsColors.Red else WatchJobsColors.Divider)
-                            .onGloballyPositioned { columnCoords[column] = it }
-                            .testTag("column_${column.name}")
-                    ) {
-                        Box(Modifier.fillMaxWidth().height(3.dp).background(WatchJobsColors.Red))
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            SectionLabel(column.label, Modifier.weight(1f))
-                            Text("${cards.size}", style = MaterialTheme.typography.labelLarge, color = WatchJobsColors.Muted)
+            if (detailed) {
+                Row(
+                    Modifier.fillMaxSize().padding(top = 16.dp).onGloballyPositioned { boardCoords = it }.horizontalScroll(boardScroll),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    specs.forEach { spec -> BoardColumnBox(spec, Modifier.width(COLUMN_WIDTH).fillMaxHeight(), scrollable = true) }
+                }
+            } else {
+                // A simplificada cabe na largura da tela; no celular as colunas ficam uma abaixo da outra.
+                BoxWithConstraints(Modifier.fillMaxSize().padding(top = 16.dp).onGloballyPositioned { boardCoords = it }) {
+                    if (maxWidth >= SIMPLE_ROW_MIN_WIDTH) {
+                        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            specs.forEach { spec -> BoardColumnBox(spec, Modifier.weight(1f).fillMaxHeight(), scrollable = true) }
                         }
-                        Hairline()
-                        Column(
-                            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(10.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            cards.forEach { card ->
-                                key(card.id) {
-                                    val current by rememberUpdatedState(card)
-                                    val dragging = drag.card?.id == card.id
-                                    Box(
-                                        Modifier
-                                            .alpha(if (dragging) 0.35f else 1f)
-                                            .onGloballyPositioned { cardCoords[card.id] = it }
-                                            .mouseDrag(
-                                                coords = { cardCoords[card.id] },
-                                                onStart = { grab, width ->
-                                                    drag.card = current
-                                                    drag.grab = grab
-                                                    drag.cardWidth = width
-                                                },
-                                                onMove = { root ->
-                                                    drag.pointer = root
-                                                    drag.hover = columnAt(root)
-                                                },
-                                                onEnd = {
-                                                    val target = drag.hover
-                                                    if (target != null) drop(current, target)
-                                                    drag.card = null
-                                                    drag.hover = null
-                                                },
-                                                onCancel = {
-                                                    drag.card = null
-                                                    drag.hover = null
-                                                }
-                                            )
-                                    ) {
-                                        KanbanCard(
-                                            card = card,
-                                            currentColumn = column,
-                                            onOpen = { onOpenSavedJob(card.id) },
-                                            onMove = { target ->
-                                                requestMove(PendingMove(card.id, target, state.board.cards(target).lastOrNull()?.id, null), card.status)
-                                            },
-                                            onTimeline = { viewModel.openTimeline(card.id) }
-                                        )
-                                    }
-                                }
-                            }
+                    } else {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            specs.forEach { spec -> BoardColumnBox(spec, Modifier.fillMaxWidth(), scrollable = false) }
                         }
                     }
                 }
@@ -244,7 +312,7 @@ fun BoardScreen(
         }
 
         // O card que acompanha o ponteiro fica acima de tudo, sem ser cortado pelas colunas.
-        val ghost = drag.card
+        val ghost = drag.entry
         val overlay = overlayCoords
         if (ghost != null && overlay != null && overlay.isAttached) {
             val origin = overlay.positionInRoot()
@@ -255,7 +323,7 @@ fun BoardScreen(
                     .alpha(0.95f)
                     .testTag("dragGhost")
             ) {
-                KanbanCard(ghost, BoardColumn.SAVED, onOpen = {}, onMove = {}, onTimeline = {}, showActions = false)
+                KanbanCard(ghost, stageTag = !detailed, moveOptions = emptyList(), onOpen = {}, onMove = {}, onTimeline = {}, showActions = false)
             }
         }
     }
@@ -306,18 +374,28 @@ fun BoardScreen(
 // Card da candidatura: empresa, cargo, match, status e a última atualização, mais abrir, histórico e mover.
 @Composable
 private fun KanbanCard(
-    card: BoardCard,
-    currentColumn: BoardColumn,
+    entry: BoardEntry,
+    stageTag: Boolean,
+    moveOptions: List<ColumnSpec>,
     onOpen: () -> Unit,
-    onMove: (BoardColumn) -> Unit,
+    onMove: (ColumnSpec) -> Unit,
     onTimeline: () -> Unit,
     showActions: Boolean = true
 ) {
+    val card = entry.card
     var menu by remember { mutableStateOf(false) }
     Column(
         Modifier.fillMaxWidth().background(WatchJobsColors.White).border(1.dp, WatchJobsColors.Border).padding(12.dp).testTag("card_${card.id}"),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+        if (stageTag) {
+            Text(
+                entry.column.label.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = WatchJobsColors.RedDark,
+                modifier = Modifier.border(1.dp, WatchJobsColors.Red).padding(horizontal = 6.dp, vertical = 2.dp).testTag("stageTag_${card.id}")
+            )
+        }
         Row(verticalAlignment = Alignment.Top) {
             Text(
                 card.organizationName.uppercase(),
@@ -360,11 +438,11 @@ private fun KanbanCard(
                         MoveIcon()
                     }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = WatchJobsColors.White) {
-                        BoardColumn.entries.filter { it != currentColumn }.forEach { column ->
+                        moveOptions.forEach { option ->
                             DropdownMenuItem(
-                                text = { Text(column.label) },
-                                onClick = { menu = false; onMove(column) },
-                                modifier = Modifier.testTag("moveTo_${column.name}")
+                                text = { Text(option.label) },
+                                onClick = { menu = false; onMove(option) },
+                                modifier = Modifier.testTag("moveTo_${option.key}")
                             )
                         }
                     }
@@ -373,6 +451,40 @@ private fun KanbanCard(
         }
     }
 }
+
+// Menu suspenso do cabeçalho para alternar entre a visualização simplificada e a detalhada.
+@Composable
+private fun BoardViewSelector(current: BoardView, onSelect: (BoardView) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier.heightIn(min = 42.dp).border(1.dp, WatchJobsColors.Border).background(WatchJobsColors.White)
+                .clickable { open = true }.padding(horizontal = 14.dp).testTag("boardViewSelector"),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("Visualização: ${current.label}", style = MaterialTheme.typography.labelLarge, color = WatchJobsColors.Ink)
+            Text("▾", style = MaterialTheme.typography.labelLarge, color = WatchJobsColors.Muted)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = WatchJobsColors.White) {
+            BoardView.entries.forEach { view ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            view.label,
+                            fontWeight = if (view == current) FontWeight.Bold else FontWeight.Normal,
+                            color = if (view == current) WatchJobsColors.Red else WatchJobsColors.Ink
+                        )
+                    },
+                    onClick = { open = false; onSelect(view) },
+                    modifier = Modifier.testTag("boardView_${view.name}")
+                )
+            }
+        }
+    }
+}
+
+private val SIMPLE_ROW_MIN_WIDTH = 720.dp
 
 // "2026-10-20T13:00:00Z" -> "20/10/2026".
 private fun updatedOn(card: BoardCard): String? {

@@ -93,6 +93,36 @@ data class AppNotification(
 ) {
     val searchRequestId: Long?
         get() = (payload["searchRequestId"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull()
+
+    val savedJobId: Long?
+        get() = (payload["savedJobId"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull()
+
+    val category: NotificationCategory
+        get() = NotificationCategory.of(type)
+
+    val unread: Boolean
+        get() = readAt == null
+}
+
+// Categoria exibida no menu do sininho e na página de avisos.
+enum class NotificationCategory(val label: String) {
+    DEADLINE("DEADLINE"),
+    INTERVIEW("INTERVIEW"),
+    NEW_MATCH("NEW MATCH"),
+    JOB_ALERT("JOB ALERT"),
+    STATUS("STATUS"),
+    SYSTEM("AVISO");
+
+    companion object {
+        fun of(type: String): NotificationCategory = when (type) {
+            "SAVED_JOB_ALERT" -> DEADLINE
+            "INTERVIEW_REMINDER" -> INTERVIEW
+            "NEW_MATCHES" -> NEW_MATCH
+            "SEARCH_COMPLETED" -> JOB_ALERT
+            "STALE_APPLICATION" -> STATUS
+            else -> SYSTEM
+        }
+    }
 }
 
 @Serializable
@@ -106,8 +136,12 @@ data class NotificationPreference(
     val minScore: Double = 70.0,
     val inAppEnabled: Boolean = true,
     val emailEnabled: Boolean = false,
-    val emailFrequency: String = "DAILY"
+    val emailFrequency: String = "DAILY",
+    val pushEnabled: Boolean = true
 )
+
+@Serializable
+data class PushDeviceRequest(val token: String, val platform: String = "ANDROID")
 
 enum class BoardColumn(val label: String) {
     SAVED("Salvas"),

@@ -48,14 +48,14 @@ fun AuthLayout(content: @Composable ColumnScope.() -> Unit) {
         } else {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 Column(
-                    Modifier.fillMaxWidth().background(WatchJobsColors.Ink).padding(horizontal = 24.dp, vertical = 22.dp),
+                    Modifier.fillMaxWidth().background(WatchJobsColors.BrandDark).padding(horizontal = 24.dp, vertical = 22.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     WatchJobsLogo(onDark = true)
                     Text(
                         "Cada vaga, do interesse à proposta.",
                         style = MaterialTheme.typography.titleLarge,
-                        color = WatchJobsColors.White
+                        color = WatchJobsColors.OnAccent
                     )
                 }
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
@@ -68,7 +68,7 @@ fun AuthLayout(content: @Composable ColumnScope.() -> Unit) {
 
 @Composable
 private fun BrandPanel(modifier: Modifier) {
-    Column(modifier.background(WatchJobsColors.Ink).padding(horizontal = 56.dp, vertical = 44.dp)) {
+    Column(modifier.background(WatchJobsColors.BrandDark).padding(horizontal = 56.dp, vertical = 44.dp)) {
         WatchJobsLogo(onDark = true, markHeight = 28.dp, fontSize = MaterialTheme.typography.titleLarge.fontSize * 1.15f)
         Spacer(Modifier.weight(1f))
         SectionLabel("Acompanhe sua busca", color = WatchJobsColors.Red)
@@ -76,13 +76,13 @@ private fun BrandPanel(modifier: Modifier) {
         Text(
             "Cada vaga,\ndo interesse\nà proposta.",
             style = MaterialTheme.typography.displaySmall,
-            color = WatchJobsColors.White
+            color = WatchJobsColors.OnAccent
         )
         Spacer(Modifier.height(16.dp))
         Text(
             "Salve as vagas que importam, registre cada candidatura e saiba sempre qual é a próxima entrevista.",
             style = MaterialTheme.typography.bodyLarge,
-            color = Color(0xFFBDBDBD),
+            color = WatchJobsColors.BrandMuted,
             modifier = Modifier.widthIn(max = 420.dp)
         )
         Spacer(Modifier.height(36.dp))
@@ -97,14 +97,14 @@ private fun BrandPanel(modifier: Modifier) {
         }
         Spacer(Modifier.weight(1f))
         Spacer(Modifier.height(40.dp))
-        Text("© 2026 WatchJobs", style = MaterialTheme.typography.bodySmall, color = Color(0xFF8A8A8A))
+        Text("© 2026 WatchJobs", style = MaterialTheme.typography.bodySmall, color = WatchJobsColors.BrandFaint)
     }
 }
 
 @Composable
 private fun PreviewColumn(title: String, content: @Composable () -> Unit) {
     Column(Modifier.width(230.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(title.uppercase(), style = MaterialTheme.typography.labelMedium, color = WatchJobsColors.White)
+        Text(title.uppercase(), style = MaterialTheme.typography.labelMedium, color = WatchJobsColors.OnAccent)
         Box(Modifier.fillMaxWidth().height(2.dp).background(WatchJobsColors.Red))
         content()
     }

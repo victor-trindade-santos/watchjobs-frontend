@@ -21,8 +21,12 @@ import com.watchjobs.data.dto.SigninRequest
 import com.watchjobs.data.dto.SignupRequest
 import com.watchjobs.data.local.InMemoryKeyValueStore
 import com.watchjobs.model.ExperienceLevel
+import com.watchjobs.model.ExperienceRequest
 import com.watchjobs.model.JobType
+import com.watchjobs.model.PersonalRequest
+import com.watchjobs.model.PreferencesRequest
 import com.watchjobs.model.SavedJobStatus
+import com.watchjobs.model.UserSkillRequest
 import com.watchjobs.model.WorkMode
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.LocalDate
@@ -68,13 +72,11 @@ class AppIntegrationTest {
         onNodeWithTag("tab_$tab").performClick()
     }
 
-    // Fora do modo demonstração, "Candidaturas" abre o Kanban; a lista fica em "Ver em lista".
+    // "Candidaturas" abre o Kanban (também no modo demonstração); a lista fica em "Ver em lista".
     private fun ComposeUiTest.openApplicationList(container: AppContainer) {
         openTab("APPLICATIONS")
-        if (!container.demoMode) {
-            waitForTag("applicationsList")
-            onNodeWithTag("applicationsList").performClick()
-        }
+        waitForTag("applicationsList")
+        onNodeWithTag("applicationsList").performClick()
     }
 
     private fun ComposeUiTest.waitForTag(tag: String) = waitUntil(timeoutMillis = 15_000) {
@@ -103,6 +105,30 @@ class AppIntegrationTest {
             runCatching { shot(name) }
             throw failure
         }
+    }
+
+    // Preenche os requisitos mínimos pela API e conclui pelo assistente (etapa Revisão).
+    private fun ComposeUiTest.completeProfileSetup(container: AppContainer) {
+        waitForTag("profileSetup")
+        runBlocking {
+            val profile = container.profileRepository
+            profile.updatePersonal(PersonalRequest(objective = "Designer de produto com foco em sistemas de design."))
+            profile.createExperience(ExperienceRequest("Product Designer", "Northlight Systems", "EMPLOYMENT", null, "2020-01-01", null, true))
+            listOf("kotlin", "sql", "java").forEach { term ->
+                container.catalogRepository.skills(term).firstOrNull()?.let { profile.createSkill(UserSkillRequest(it.id, "INTERMEDIATE")) }
+            }
+            profile.savePreferences(PreferencesRequest(preferredRoles = listOf("Product Designer"), preferredWorkMode = "REMOTE"))
+        }
+        onNodeWithTag("setupStep_REVIEW").performClick()
+        waitUntil(timeoutMillis = 15_000) {
+            onAllNodesWithTag("completeSetup").fetchSemanticsNodes().any { node ->
+                !node.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled)
+            }
+        }
+        onNodeWithTag("completeSetup").performClick()
+        // Primeiro acesso depois do assistente: o tour guiado abre sozinho; aqui ele é pulado.
+        waitForTag("tourSkip")
+        onNodeWithTag("tourSkip").performClick()
     }
 
     @Test
@@ -148,8 +174,17 @@ class AppIntegrationTest {
                 shot("03-cadastro-preenchido")
                 onNodeWithTag("signupButton").performClick()
 
-                // Volta ao login com o e-mail preenchido.
+                // O cadastro entra direto. Fora do modo demonstração, o assistente de perfil vem antes do app.
                 waitForText("Conta criada")
+                if (!container.demoMode) completeProfileSetup(container)
+                waitForTag("userMenu")
+
+                // Sair e entrar de novo: erro de senha e login.
+                onNodeWithTag("userMenu").performClick()
+                waitForTag("logoutButton")
+                onNodeWithTag("logoutButton").performClick()
+                waitForText("Bem-vindo de volta.")
+                fill("loginEmail", email)
                 onNodeWithTag("loginPassword").performTextInput("errada123")
                 onNodeWithTag("loginButton").performClick()
                 waitForText("E-mail ou senha inválidos")
@@ -272,7 +307,9 @@ class AppIntegrationTest {
                 assertEquals(applicationsBefore - 1, applicationsLeft)
                 shot("12-vagas-apos-excluir")
 
-                // Sair.
+                // Sair, pelo menu do usuário.
+                onNodeWithTag("userMenu").performClick()
+                waitForTag("logoutButton")
                 onNodeWithTag("logoutButton").performClick()
                 waitForText("Bem-vindo de volta.")
             }
@@ -302,6 +339,15 @@ class AppIntegrationTest {
             container.authRepository.signin(SigninRequest(email, "senha1234"))
             val job = container.savedJobRepository.create(SavedJobRequest("Desenvolvedor Kotlin", "ACME Tecnologia", locationCity = "Recife", locationState = "PE", workMode = WorkMode.REMOTE, experienceLevel = ExperienceLevel.MID, jobType = JobType.CLT, salaryMin = 9000.0, salaryMax = 13000.0, salaryCurrency = "BRL", status = SavedJobStatus.SAVED))
             container.applicationRepository.create(ApplicationRequest(job.id!!, 2, "IN_PROCESS", LocalDate(2026, 10, 14), interviewAt = LocalDateTime(2026, 10, 21, 10, 0)))
+            val profile = container.profileRepository
+            profile.updatePersonal(PersonalRequest(objective = "Desenvolvedor Kotlin."))
+            profile.createExperience(ExperienceRequest("Desenvolvedor Kotlin", "ACME Tecnologia", "EMPLOYMENT", null, "2021-01-01", null, true))
+            listOf("kotlin", "sql", "java").forEach { term ->
+                container.catalogRepository.skills(term).firstOrNull()?.let { profile.createSkill(UserSkillRequest(it.id, "INTERMEDIATE")) }
+            }
+            profile.savePreferences(PreferencesRequest(preferredRoles = listOf("Desenvolvedor Kotlin"), preferredWorkMode = "REMOTE"))
+            profile.completeSetup()
+            profile.completeOnboarding()
         }
         runDesktopComposeUiTest(width = 412, height = 900) {
             withFailureShot("ERRO-celular") {

@@ -35,6 +35,30 @@ data class PersonalRequest(
     val availability: String? = null
 )
 
+// Assistente de configuração do perfil (F05): requisitos mínimos validados no backend.
+@Serializable
+data class SetupRequirements(
+    val summary: Boolean = false,
+    val experiences: Int = 0,
+    val skills: Int = 0,
+    val preferencesConfirmed: Boolean = false
+)
+
+@Serializable
+data class ProfileSetupStatus(
+    val completed: Boolean = false,
+    val step: String? = null,
+    val requirements: SetupRequirements = SetupRequirements(),
+    val missing: List<String> = emptyList(),
+    val canComplete: Boolean = false
+)
+
+@Serializable
+data class SetupStepRequest(val step: String)
+
+@Serializable
+data class OnboardingStatus(val completed: Boolean = false)
+
 enum class Availability(val label: String) {
     IMMEDIATE("Imediata"),
     TWO_WEEKS("Em 2 semanas"),

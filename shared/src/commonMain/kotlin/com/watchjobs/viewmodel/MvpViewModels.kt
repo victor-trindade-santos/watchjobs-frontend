@@ -2,6 +2,7 @@ package com.watchjobs.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.watchjobs.data.local.BoardViewPreference
 import com.watchjobs.data.remote.ApiException
 import com.watchjobs.data.repository.BoardRepository
 import com.watchjobs.data.repository.FeedQuery
@@ -12,6 +13,7 @@ import com.watchjobs.data.repository.ProfileRepository
 import com.watchjobs.model.AppNotification
 import com.watchjobs.model.Board
 import com.watchjobs.model.BoardColumn
+import com.watchjobs.model.BoardView
 import com.watchjobs.model.DiscoverRequest
 import com.watchjobs.model.DiscoverResult
 import com.watchjobs.model.FeedFacets
@@ -31,6 +33,8 @@ import kotlinx.coroutines.flow.update
 
 data class FeedState(
     val query: FeedQuery = FeedQuery(),
+    // Filtros em edição na lateral; só viram "query" ao clicar em "Buscar vagas".
+    val draft: FeedQuery = query,
     val items: List<FeedItem> = emptyList(),
     val total: Long = 0,
     val page: Int = 0,
@@ -45,6 +49,9 @@ data class FeedState(
 ) {
     val hasMore: Boolean
         get() = items.size < total
+
+    val hasPendingFilters: Boolean
+        get() = draft.copy(text = query.text, sort = query.sort) != query
 }
 
 // Página inicial e "Buscar vagas" numa tela só: vagas ordenadas pela nota, com todos os filtros opcionais.
@@ -70,14 +77,31 @@ class FeedViewModel(
         searchSkills("")
     }
 
-    // Texto e salário esperam uma pausa na digitação; os demais filtros valem na hora.
+    // Texto e ordenação valem na hora (o texto espera uma pausa na digitação); os filtros da lateral, não.
     fun update(debounce: Boolean = false, change: (FeedQuery) -> FeedQuery) {
-        mutableState.update { it.copy(query = change(it.query)) }
+        mutableState.update { it.copy(query = change(it.query), draft = change(it.draft)) }
         onQueryChanged(state.value.query)
         load(debounce)
     }
 
-    fun clearFilters() = update { FeedQuery(text = it.text, sort = it.sort) }
+    fun updateDraft(change: (FeedQuery) -> FeedQuery) = mutableState.update { it.copy(draft = change(it.draft)) }
+
+    // Botão "Buscar vagas": envia os filtros escolhidos ao backend.
+    fun applyFilters() {
+        mutableState.update { state ->
+            val applied = state.draft.copy(text = state.query.text, sort = state.query.sort)
+            state.copy(query = applied, draft = applied)
+        }
+        onQueryChanged(state.value.query)
+        load()
+    }
+
+    fun clearFilters() = updateDraft { FeedQuery(text = it.text, sort = it.sort) }
+
+    fun clearAndSearch() {
+        clearFilters()
+        applyFilters()
+    }
 
     fun load(debounce: Boolean = false) {
         loadJob?.cancel()
@@ -131,11 +155,11 @@ class FeedViewModel(
         }
     }
 
-    fun addSkill(skill: JobSkillFacet) = update { query ->
+    fun addSkill(skill: JobSkillFacet) = updateDraft { query ->
         if (query.skills.any { it.id == skill.id }) query else query.copy(skills = query.skills + skill)
     }
 
-    fun removeSkill(id: Long) = update { query -> query.copy(skills = query.skills.filterNot { it.id == id }) }
+    fun removeSkill(id: Long) = updateDraft { query -> query.copy(skills = query.skills.filterNot { it.id == id }) }
 
     // Dispensar ou ocultar tira a vaga da lista na hora.
     fun interact(id: Long, type: String, showMessage: (String) -> Unit) {
@@ -294,6 +318,7 @@ class NotificationsViewModel(private val repository: NotificationRepository) : V
 
 data class BoardState(
     val board: Board = Board(),
+    val view: BoardView = BoardView.SIMPLE,
     val loading: Boolean = true,
     val error: String? = null,
     val moving: Boolean = false,
@@ -302,12 +327,20 @@ data class BoardState(
 )
 
 // Kanban (F6-05/06): mover pelo menu ou arrastando; a ordem fica no backend (board_rank).
-class BoardViewModel(private val repository: BoardRepository) : ViewModel() {
-    private val mutableState = MutableStateFlow(BoardState())
+class BoardViewModel(
+    private val repository: BoardRepository,
+    private val viewPreference: BoardViewPreference? = null
+) : ViewModel() {
+    private val mutableState = MutableStateFlow(BoardState(view = viewPreference?.get() ?: BoardView.SIMPLE))
     val state: StateFlow<BoardState> = mutableState.asStateFlow()
 
     init {
         load()
+    }
+
+    fun setView(view: BoardView) {
+        viewPreference?.set(view)
+        mutableState.update { it.copy(view = view) }
     }
 
     fun load() {

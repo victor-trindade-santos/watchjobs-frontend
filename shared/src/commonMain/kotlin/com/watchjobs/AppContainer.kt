@@ -1,7 +1,9 @@
 package com.watchjobs
 
+import com.watchjobs.data.local.BoardViewPreference
 import com.watchjobs.data.local.InMemoryKeyValueStore
 import com.watchjobs.data.local.KeyValueStore
+import com.watchjobs.data.local.ThemePreference
 import com.watchjobs.data.local.TokenStorage
 import com.watchjobs.data.local.createKeyValueStore
 import com.watchjobs.data.remote.ApiClient
@@ -11,10 +13,12 @@ import com.watchjobs.data.remote.FakeBackendTransport
 import com.watchjobs.data.remote.HttpTransport
 import com.watchjobs.data.remote.createHttpTransport
 import com.watchjobs.data.remote.platformDemoMode
+import com.watchjobs.data.repository.AnalyticsRepository
 import com.watchjobs.data.repository.ApplicationRepository
 import com.watchjobs.data.repository.AuthRepository
 import com.watchjobs.data.repository.BoardRepository
 import com.watchjobs.data.repository.CatalogRepository
+import com.watchjobs.data.repository.DocumentRepository
 import com.watchjobs.data.repository.FeedQuery
 import com.watchjobs.data.repository.FeedRepository
 import com.watchjobs.data.repository.JobSearchQuery
@@ -42,10 +46,17 @@ class AppContainer(
     val feedRepository = FeedRepository(api)
     val notificationRepository = NotificationRepository(api)
     val boardRepository = BoardRepository(api)
+    val boardViewPreference = BoardViewPreference(store)
+    val themePreference = ThemePreference(store).also { it.applySaved() }
+    val analyticsRepository = AnalyticsRepository(api)
+    val documentRepository = DocumentRepository(api)
 
     // Última busca em "Buscar vagas", para voltar dos Detalhes da vaga com os mesmos filtros.
     var jobSearchQuery = JobSearchQuery()
 
     // Filtros da página de vagas: continuam os mesmos ao abrir uma vaga e voltar.
     var feedQuery = FeedQuery()
+
+    // Token FCM do aparelho (Android), para descadastrar ao sair da conta.
+    var pushToken: String? = null
 }

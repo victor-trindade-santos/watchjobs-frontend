@@ -33,6 +33,10 @@ class ApiClient(
     // Emite quando uma rota protegida responde 401: o token é apagado e o app volta para o login.
     val sessionExpired: SharedFlow<Unit> = sessionExpiredFlow
 
+    // Emite quando o backend exige concluir a configuração do perfil (403 PROFILE_SETUP_REQUIRED).
+    private val profileSetupRequiredFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val profileSetupRequired: SharedFlow<Unit> = profileSetupRequiredFlow
+
     suspend inline fun <reified T> get(path: String): T =
         json.decodeFromString(request("GET", path, null))
 
@@ -148,6 +152,11 @@ class ApiClient(
             tokenStorage.clear()
             sessionExpiredFlow.tryEmit(Unit)
         }
+        if (response.status == 403 && error.code == PROFILE_SETUP_REQUIRED) profileSetupRequiredFlow.tryEmit(Unit)
         throw ApiException(response.status, error)
+    }
+
+    companion object {
+        const val PROFILE_SETUP_REQUIRED = "PROFILE_SETUP_REQUIRED"
     }
 }

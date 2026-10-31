@@ -194,9 +194,9 @@ fun LinkedInImportScreen(
                         )
                     }
                     preview.profile?.headline?.let {
-                        Panel("Objetivo profissional lido") {
+                        Panel("Resumo profissional lido") {
                             Text(it, style = MaterialTheme.typography.bodyMedium)
-                            Text("Entra no perfil só se o seu objetivo ainda estiver vazio.", style = MaterialTheme.typography.bodySmall, color = WatchJobsColors.Muted)
+                            Text("Entra no perfil só se o seu resumo ainda estiver vazio.", style = MaterialTheme.typography.bodySmall, color = WatchJobsColors.Muted)
                         }
                     }
                     PreviewGroup("Experiências", preview.experiences.map { Triple(it.ref, "${it.jobTitle} · ${it.organizationName}", it.status) }, state.selected, viewModel::toggle)

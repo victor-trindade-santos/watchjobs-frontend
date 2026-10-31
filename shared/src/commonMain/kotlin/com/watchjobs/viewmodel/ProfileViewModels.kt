@@ -176,13 +176,18 @@ data class PreferencesState(
 class PreferencesViewModel(
     private val repository: ProfileRepository,
     private val catalog: CatalogRepository,
-    autoFill: Boolean = false
+    private val autoFill: Boolean = false
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(PreferencesState())
     val state: StateFlow<PreferencesState> = mutableState.asStateFlow()
     private var searchJob: Job? = null
 
     init {
+        reload()
+    }
+
+    // Também usado pelo assistente de perfil, depois de importar o currículo (a sugestão muda).
+    fun reload() {
         viewModelScope.launchRequest(onError = { ex -> mutableState.update { it.copy(loading = false, error = ex.generalMessage()) } }) {
             val current = repository.preferences()
             val suggestion = runCatching { repository.suggestion() }.getOrNull()

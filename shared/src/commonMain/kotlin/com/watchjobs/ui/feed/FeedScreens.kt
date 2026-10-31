@@ -52,6 +52,7 @@ import com.watchjobs.model.WorkMode
 import com.watchjobs.ui.components.DropdownField
 import com.watchjobs.ui.components.EmptyState
 import com.watchjobs.ui.components.ErrorBanner
+import com.watchjobs.ui.components.Hairline
 import com.watchjobs.ui.components.LabeledTextField
 import com.watchjobs.ui.components.LoadingBox
 import com.watchjobs.ui.components.PageContainer
@@ -66,6 +67,7 @@ import com.watchjobs.ui.jobs.SalaryRangeFilter
 import com.watchjobs.ui.jobs.SkillsFilter
 import com.watchjobs.ui.jobs.TextAction
 import com.watchjobs.ui.jobs.formatScore
+import com.watchjobs.ui.onboarding.tourTarget
 import com.watchjobs.ui.theme.WatchJobsColors
 import com.watchjobs.util.postedLabel
 import com.watchjobs.util.salaryRange
@@ -87,12 +89,16 @@ fun FeedScreen(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         if (maxWidth >= 900.dp) {
             Row(Modifier.fillMaxSize()) {
-                Column(
-                    Modifier.width(300.dp).fillMaxHeight().background(WatchJobsColors.White)
-                        .verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 28.dp)
-                        .testTag("jobSearchFilters")
-                ) {
-                    JobFilters(viewModel)
+                // Lateral em duas áreas: grupos de filtros com rolagem própria e o botão de busca fixo embaixo.
+                Column(Modifier.width(300.dp).fillMaxHeight().background(WatchJobsColors.White).tourTarget("jobSearchFilters").testTag("jobSearchFilters")) {
+                    Column(
+                        Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                            .padding(start = 22.dp, end = 22.dp, top = 28.dp, bottom = 12.dp)
+                    ) {
+                        JobFilters(viewModel)
+                    }
+                    Hairline()
+                    SearchFiltersButton(viewModel, Modifier.padding(horizontal = 22.dp, vertical = 16.dp))
                 }
                 Box(Modifier.width(1.dp).fillMaxHeight().background(WatchJobsColors.Divider))
                 FeedResults(viewModel, onView, onDiscover, onPreferences, showMessage, filtersInline = false, modifier = Modifier.weight(1f))
@@ -158,6 +164,8 @@ private fun FeedResults(
                 if (filtersInline && showFilters) {
                     Column(Modifier.fillMaxWidth().background(WatchJobsColors.White).border(1.dp, WatchJobsColors.Border).padding(18.dp)) {
                         JobFilters(viewModel)
+                        Spacer(Modifier.height(12.dp))
+                        SearchFiltersButton(viewModel)
                     }
                 }
                 state.error?.let { ErrorBanner(it) }
@@ -174,7 +182,7 @@ private fun FeedResults(
                     else "Preencha as preferências (cargos e modo) ou use \"Buscar mais vagas\" para trazer vagas novas.",
                     modifier = Modifier.widthIn(max = pageWidth)
                 ) {
-                    if (filtered) PrimaryButton("Limpar filtros", viewModel::clearFilters) else PrimaryButton("Abrir preferências", onPreferences)
+                    if (filtered) PrimaryButton("Limpar filtros", viewModel::clearAndSearch) else PrimaryButton("Abrir preferências", onPreferences)
                 }
             }
             else -> {
@@ -198,24 +206,28 @@ private fun FeedResults(
     }
 }
 
-// Painel de filtros: tudo opcional, a lista atualiza na hora e os filtros ficam guardados ao navegar.
+// Painel de filtros: tudo opcional; as mudanças ficam em rascunho até clicar em "Buscar vagas".
 @Composable
 private fun JobFilters(viewModel: FeedViewModel) {
     val state by viewModel.state.collectAsState()
-    val query = state.query
+    val query = state.draft
     val facets = state.facets
-    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    Column {
+        Row(Modifier.padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("FILTROS", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.ExtraBold, color = WatchJobsColors.Ink, modifier = Modifier.weight(1f))
             TextAction("Limpar tudo", viewModel::clearFilters, Modifier.testTag("resetFilters"), enabled = query.activeFilterCount > 0)
         }
+        SoftDivider()
         MultiSelectFilter("Modo de trabalho", WorkMode.selectable, query.workModes, { it.label },
-            { s -> viewModel.update { it.copy(workModes = s) } }, "workMode")
+            { s -> viewModel.updateDraft { it.copy(workModes = s) } }, "workMode", collapsible = true)
+        SoftDivider()
         MultiSelectFilter("Nível de senioridade", ExperienceLevel.selectable, query.levels, { it.label },
-            { s -> viewModel.update { it.copy(levels = s) } }, "level")
-        SalaryRangeFilter(query.salaryMin, query.salaryMax) { min, max ->
-            viewModel.update(debounce = true) { it.copy(salaryMin = min, salaryMax = max) }
+            { s -> viewModel.updateDraft { it.copy(levels = s) } }, "level", collapsible = true)
+        SoftDivider()
+        SalaryRangeFilter(query.salaryMin, query.salaryMax, collapsible = true) { min, max ->
+            viewModel.updateDraft { it.copy(salaryMin = min, salaryMax = max) }
         }
+        SoftDivider()
         SkillsFilter(
             selected = query.skills,
             suggestions = state.skillSuggestions,
@@ -225,19 +237,48 @@ private fun JobFilters(viewModel: FeedViewModel) {
             onSearch = viewModel::searchSkills,
             onAdd = viewModel::addSkill,
             onRemove = viewModel::removeSkill,
-            onClear = { viewModel.update { it.copy(skills = emptyList()) } },
+            onClear = { viewModel.updateDraft { it.copy(skills = emptyList()) } },
             onLoadMore = viewModel::loadMoreSkills,
-            onModeChange = { mode -> viewModel.update { it.copy(skillMatch = mode) } }
+            onModeChange = { mode -> viewModel.updateDraft { it.copy(skillMatch = mode) } },
+            collapsible = true
         )
+        SoftDivider()
         MultiSelectFilter("Tipo de contratação", JobType.selectable, query.jobTypes, { it.label },
-            { s -> viewModel.update { it.copy(jobTypes = s) } }, "jobType")
+            { s -> viewModel.updateDraft { it.copy(jobTypes = s) } }, "jobType", collapsible = true)
+        SoftDivider()
         FacetFilter("Área de atuação", "roleFamily", facets.roleFamilies, query.roleFamilies, ::humanize) { s ->
-            viewModel.update { it.copy(roleFamilies = s) }
+            viewModel.updateDraft { it.copy(roleFamilies = s) }
         }
-        FacetFilter("País", "country", facets.countries, query.countries, ::countryName) { s -> viewModel.update { it.copy(countries = s) } }
-        FacetFilter("Estado", "state", facets.states, query.states, { it }) { s -> viewModel.update { it.copy(states = s) } }
-        FacetFilter("Cidade", "city", facets.cities, query.cities, { it }) { s -> viewModel.update { it.copy(cities = s) } }
-        FacetFilter("Empresa", "company", facets.companies, query.companies, { it }) { s -> viewModel.update { it.copy(companies = s) } }
+        SoftDivider()
+        FacetFilter("País", "country", facets.countries, query.countries, ::countryName) { s -> viewModel.updateDraft { it.copy(countries = s) } }
+        SoftDivider()
+        FacetFilter("Estado", "state", facets.states, query.states, { it }) { s -> viewModel.updateDraft { it.copy(states = s) } }
+        SoftDivider()
+        FacetFilter("Cidade", "city", facets.cities, query.cities, { it }) { s -> viewModel.updateDraft { it.copy(cities = s) } }
+        SoftDivider()
+        FacetFilter("Empresa", "company", facets.companies, query.companies, { it }) { s -> viewModel.updateDraft { it.copy(companies = s) } }
+    }
+}
+
+@Composable
+private fun SoftDivider() {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(WatchJobsColors.Divider.copy(alpha = 0.6f)))
+}
+
+// Botão fixo da lateral: só aqui os filtros escolhidos são enviados ao backend.
+@Composable
+private fun SearchFiltersButton(viewModel: FeedViewModel, modifier: Modifier = Modifier) {
+    val state by viewModel.state.collectAsState()
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (state.hasPendingFilters) {
+            Text("Filtros alterados. Clique em Buscar vagas para aplicar.", style = MaterialTheme.typography.bodySmall, color = WatchJobsColors.Muted)
+        }
+        PrimaryButton(
+            "Buscar vagas",
+            viewModel::applyFilters,
+            modifier = Modifier.fillMaxWidth().testTag("applyFilters"),
+            loading = state.loading
+        )
     }
 }
 
@@ -251,7 +292,7 @@ private fun FacetFilter(
     onChange: (Set<String>) -> Unit
 ) {
     val counts = facet.associate { it.value to it.count }
-    MultiSelectFilter(title, facet.map { it.value }, selected, label, onChange, tag, count = { counts[it] }, visibleLimit = FACET_VISIBLE)
+    MultiSelectFilter(title, facet.map { it.value }, selected, label, onChange, tag, count = { counts[it] }, visibleLimit = FACET_VISIBLE, collapsible = true)
 }
 
 private const val FACET_VISIBLE = 6

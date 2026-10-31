@@ -41,7 +41,8 @@ class JavaHttpClientTransport : HttpTransport {
         headers: Map<String, String>,
         body: String?
     ): HttpResult = withContext(Dispatchers.IO) {
-        val builder = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(30))
+        // 90 s: a geração de documentos com IA (F10) pode levar perto de um minuto.
+        val builder = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(90))
         headers.forEach { (name, value) -> builder.header(name, value) }
         val publisher = if (body != null) {
             HttpRequest.BodyPublishers.ofString(body)

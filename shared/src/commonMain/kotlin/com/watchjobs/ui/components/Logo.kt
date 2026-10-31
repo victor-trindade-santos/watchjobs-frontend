@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -49,16 +50,19 @@ private fun logoMark(dotColor: Color): ImageVector =
         }
     }.build()
 
-private val markOnLight by lazy { logoMark(WatchJobsColors.Ink) }
-private val markOnDark by lazy { logoMark(WatchJobsColors.White) }
+// Ícone da janela no Desktop: sempre com o ponto escuro da marca.
+private val markBrand by lazy { logoMark(WatchJobsColors.BrandDark) }
 
-// Usado como ícone da janela no Desktop.
-val WatchJobsMark: ImageVector get() = markOnLight
+val WatchJobsMark: ImageVector get() = markBrand
 
+// O ponto acompanha o tema (tinta no claro, claro no escuro); sobre o painel escuro da marca é sempre branco.
 @Composable
 fun LogoMark(height: Dp, onDark: Boolean = false, modifier: Modifier = Modifier) {
+    val dot = if (onDark) WatchJobsColors.OnAccent else WatchJobsColors.Ink
+    val red = WatchJobsColors.Red
+    val mark = remember(dot, red) { logoMark(dot) }
     Image(
-        imageVector = if (onDark) markOnDark else markOnLight,
+        imageVector = mark,
         contentDescription = null,
         modifier = modifier.height(height)
     )
@@ -79,7 +83,7 @@ fun WatchJobsLogo(
         LogoMark(height = markHeight, onDark = onDark)
         Text(
             text = buildAnnotatedString {
-                withStyle(SpanStyle(color = if (onDark) WatchJobsColors.White else WatchJobsColors.Ink)) { append("Watch") }
+                withStyle(SpanStyle(color = if (onDark) WatchJobsColors.OnAccent else WatchJobsColors.Ink)) { append("Watch") }
                 withStyle(SpanStyle(color = WatchJobsColors.Red)) { append("Jobs") }
             },
             style = MaterialTheme.typography.titleLarge,

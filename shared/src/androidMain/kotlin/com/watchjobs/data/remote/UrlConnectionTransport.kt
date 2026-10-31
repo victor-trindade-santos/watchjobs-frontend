@@ -49,7 +49,8 @@ class UrlConnectionTransport : HttpTransport {
         try {
             connection.requestMethod = method
             connection.connectTimeout = 10_000
-            connection.readTimeout = 30_000
+            // 90 s: a geração de documentos com IA (F10) pode levar perto de um minuto.
+            connection.readTimeout = 90_000
             headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
             if (body != null) {
                 connection.doOutput = true

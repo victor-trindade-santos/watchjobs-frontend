@@ -1,5 +1,6 @@
 package com.watchjobs.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,8 +24,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -32,21 +43,49 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.watchjobs.ui.onboarding.tourTarget
+import com.watchjobs.ui.theme.ThemeMode
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
 import com.watchjobs.ui.theme.WatchJobsColors
 
 enum class MainTab(val label: String) {
     JOB_SEARCH("Buscar vagas"),
     SAVED_JOBS("Vagas salvas"),
     APPLICATIONS("Candidaturas"),
+    ANALYTICS("Analytics"),
     PROFILE("Perfil")
+}
+
+// Opções do menu do usuário (avatar + seta na navbar).
+enum class UserMenuAction(val label: String, val icon: ImageVector) {
+    PROFILE("Perfil & Experiência", Icons.Default.Person),
+    PREFERENCES("Preferências", Icons.Default.Settings),
+    LINKEDIN_IMPORT("Importar LinkedIn", Icons.Default.Add),
+    DOCUMENTS("Currículos e cartas", Icons.Default.Edit),
+    TOUR("Rever o tour guiado", Icons.Default.Info),
+    DELETE_ACCOUNT("Excluir conta", Icons.Default.Delete),
+    LOGOUT("Sair", Icons.AutoMirrored.Filled.ExitToApp);
+
+    companion object {
+        val standard = listOf(PROFILE, PREFERENCES, LINKEDIN_IMPORT, DOCUMENTS, TOUR, LOGOUT)
+    }
 }
 
 // Barra de topo das telas internas, no estilo dos protótipos: logo, abas com sublinhado vermelho e o usuário.
@@ -55,11 +94,13 @@ fun MainScaffold(
     initials: String,
     currentTab: MainTab,
     onTabSelected: (MainTab) -> Unit,
-    onLogout: () -> Unit,
-    onDeleteAccount: () -> Unit = {},
+    onUserMenu: (UserMenuAction) -> Unit,
+    userMenu: List<UserMenuAction> = UserMenuAction.standard,
     tabs: List<MainTab> = MainTab.entries,
     unreadCount: Long? = null,
+    notifications: (@Composable (close: () -> Unit) -> Unit)? = null,
     onNotifications: () -> Unit = {},
+    onToggleTheme: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Column(Modifier.fillMaxSize().background(WatchJobsColors.Background)) {
@@ -76,19 +117,15 @@ fun MainScaffold(
                         Tabs(tabs, currentTab, onTabSelected, Modifier.fillMaxHeight())
                     }
                     Spacer(Modifier.weight(1f))
-                    if (unreadCount != null) {
-                        NotificationBell(unreadCount, onNotifications)
+                    if (onToggleTheme != null) {
+                        ThemeToggle(onToggleTheme)
                         Spacer(Modifier.width(10.dp))
                     }
-                    Box(
-                        Modifier.size(32.dp).background(WatchJobsColors.Ink),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(initials, style = MaterialTheme.typography.labelLarge, color = WatchJobsColors.White)
+                    if (unreadCount != null) {
+                        NotificationBell(unreadCount, onNotifications, notifications)
+                        Spacer(Modifier.width(10.dp))
                     }
-                    Spacer(Modifier.width(10.dp))
-                    GhostButton("Excluir", onDeleteAccount, modifier = Modifier.testTag("deleteAccountButton"))
-                    GhostButton("Sair", onLogout, modifier = Modifier.testTag("logoutButton"))
+                    UserMenu(initials, userMenu, onUserMenu)
                 }
                 if (compact) {
                     Tabs(
@@ -105,17 +142,127 @@ fun MainScaffold(
     }
 }
 
-// Sininho com o número de avisos não lidos (F5-07).
+// Alterna claro/escuro. Mostra o tema para o qual vai mudar: lua no claro, sol no escuro.
 @Composable
-private fun NotificationBell(unread: Long, onClick: () -> Unit) {
-    Box(Modifier.size(36.dp).clickable(onClick = onClick).testTag("notificationBell"), contentAlignment = Alignment.Center) {
-        Icon(Icons.Default.Notifications, contentDescription = "Avisos", tint = WatchJobsColors.Ink)
-        if (unread > 0) {
-            Box(
-                Modifier.align(Alignment.TopEnd).background(WatchJobsColors.Red).padding(horizontal = 4.dp),
-                contentAlignment = Alignment.Center
+private fun ThemeToggle(onToggle: () -> Unit) {
+    val dark = WatchJobsColors.mode == ThemeMode.DARK
+    val label = if (dark) "Usar tema claro" else "Usar tema escuro"
+    Box(
+        Modifier.size(36.dp)
+            .clickable(onClick = onToggle)
+            .testTag("themeToggle")
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center
+    ) {
+        val ink = WatchJobsColors.Ink
+        val cutout = WatchJobsColors.White
+        Canvas(Modifier.size(20.dp)) {
+            val c = center
+            val r = size.minDimension
+            if (dark) {
+                drawCircle(ink, radius = r * 0.2f, center = c)
+                repeat(8) { i ->
+                    val angle = i * (kotlin.math.PI / 4)
+                    val dx = kotlin.math.cos(angle).toFloat()
+                    val dy = kotlin.math.sin(angle).toFloat()
+                    drawLine(
+                        ink,
+                        Offset(c.x + dx * r * 0.32f, c.y + dy * r * 0.32f),
+                        Offset(c.x + dx * r * 0.46f, c.y + dy * r * 0.46f),
+                        strokeWidth = 1.6.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
+            } else {
+                drawCircle(ink, radius = r * 0.38f, center = c)
+                drawCircle(cutout, radius = r * 0.32f, center = Offset(c.x + r * 0.2f, c.y - r * 0.14f))
+            }
+        }
+    }
+}
+
+// Sininho com o número de avisos não lidos. Com "panel", abre o menu suspenso dos avisos recentes.
+@Composable
+private fun NotificationBell(unread: Long, onClick: () -> Unit, panel: (@Composable (close: () -> Unit) -> Unit)?) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Box(
+            Modifier.size(36.dp)
+                .tourTarget("notificationBell")
+                .border(1.dp, if (open) WatchJobsColors.Red else Color.Transparent)
+                .clickable {
+                    if (panel == null) {
+                        onClick()
+                    } else {
+                        open = !open
+                        if (open) onClick()
+                    }
+                }
+                .testTag("notificationBell"),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.Notifications, contentDescription = "Avisos", tint = WatchJobsColors.Ink)
+            if (unread > 0) {
+                Box(
+                    Modifier.align(Alignment.TopEnd).background(WatchJobsColors.Red).padding(horizontal = 4.dp).testTag("unreadBadge"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(if (unread > 99) "99+" else unread.toString(), style = MaterialTheme.typography.labelSmall, color = WatchJobsColors.OnAccent)
+                }
+            }
+        }
+        if (panel != null) {
+            DropdownMenu(
+                expanded = open,
+                onDismissRequest = { open = false },
+                shape = RectangleShape,
+                containerColor = WatchJobsColors.White,
+                border = BorderStroke(1.dp, WatchJobsColors.Border),
+                modifier = Modifier.width(380.dp)
             ) {
-                Text(if (unread > 99) "99+" else unread.toString(), style = MaterialTheme.typography.labelSmall, color = WatchJobsColors.White)
+                panel { open = false }
+            }
+        }
+    }
+}
+
+// Avatar com as iniciais e a seta: abre o menu com perfil, preferências, importação e sair.
+@Composable
+private fun UserMenu(initials: String, actions: List<UserMenuAction>, onAction: (UserMenuAction) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier.tourTarget("userMenu").clickable { open = true }.testTag("userMenu").semantics { contentDescription = "Menu do usuário" },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(32.dp).background(WatchJobsColors.Ink), contentAlignment = Alignment.Center) {
+                Text(initials, style = MaterialTheme.typography.labelLarge, color = WatchJobsColors.White)
+            }
+            Box(Modifier.size(width = 24.dp, height = 32.dp).border(1.dp, WatchJobsColors.Border), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = WatchJobsColors.Ink, modifier = Modifier.size(18.dp))
+            }
+        }
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            shape = RectangleShape,
+            containerColor = WatchJobsColors.White,
+            border = BorderStroke(1.dp, WatchJobsColors.Border)
+        ) {
+            actions.forEach { action ->
+                if (action == UserMenuAction.LOGOUT && actions.size > 1) Hairline()
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            action.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (action == UserMenuAction.LOGOUT || action == UserMenuAction.DELETE_ACCOUNT) WatchJobsColors.RedDark else WatchJobsColors.Ink
+                        )
+                    },
+                    leadingIcon = { Icon(action.icon, contentDescription = null, tint = WatchJobsColors.Muted, modifier = Modifier.size(18.dp)) },
+                    onClick = { open = false; onAction(action) },
+                    modifier = Modifier.testTag(if (action == UserMenuAction.LOGOUT) "logoutButton" else "userMenu_${action.name}")
+                )
             }
         }
     }
@@ -127,7 +274,7 @@ private fun Tabs(tabs: List<MainTab>, current: MainTab, onSelected: (MainTab) ->
         tabs.forEach { tab ->
             val active = tab == current
             Column(
-                Modifier.fillMaxHeight().width(IntrinsicSize.Max).clickable { onSelected(tab) }.testTag("tab_${tab.name}"),
+                Modifier.fillMaxHeight().width(IntrinsicSize.Max).tourTarget("tab_${tab.name}").clickable { onSelected(tab) }.testTag("tab_${tab.name}"),
                 verticalArrangement = Arrangement.Center
             ) {
                 Spacer(Modifier.weight(1f))

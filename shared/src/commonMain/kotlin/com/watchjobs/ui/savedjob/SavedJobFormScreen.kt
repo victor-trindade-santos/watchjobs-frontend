@@ -47,7 +47,8 @@ import com.watchjobs.viewmodel.SavedJobFormViewModel
 fun SavedJobFormScreen(
     viewModel: SavedJobFormViewModel,
     onSaved: (String) -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    onDocuments: (() -> Unit)? = null
 ) {
     val state by viewModel.state.collectAsState()
     val form = state.form
@@ -64,6 +65,9 @@ fun SavedJobFormScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = WatchJobsColors.Muted
             )
+            if (state.isEdit && onDocuments != null) {
+                GhostButton("Gerar currículo adaptado ou cover letter →", onDocuments, Modifier.testTag("openDocuments"), color = WatchJobsColors.Red)
+            }
             if (state.loading) {
                 LoadingBox()
                 return@PageContainer

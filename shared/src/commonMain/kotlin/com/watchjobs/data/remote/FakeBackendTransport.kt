@@ -14,6 +14,12 @@ import com.watchjobs.data.dto.SigninRequest
 import com.watchjobs.data.dto.SignupRequest
 import com.watchjobs.model.Application
 import com.watchjobs.model.ApplicationStage
+import com.watchjobs.model.Board
+import com.watchjobs.model.BoardCard
+import com.watchjobs.model.BoardColumn
+import com.watchjobs.model.BoardColumnData
+import com.watchjobs.model.MoveRequest
+import com.watchjobs.model.TimelineEvent
 import com.watchjobs.model.ExperienceLevel
 import com.watchjobs.model.JobDetail
 import com.watchjobs.model.JobPosting
@@ -77,6 +83,9 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
     private val corpus = mutableListOf<JobPosting>()
     private val savedFromCorpus = mutableMapOf<Pair<Int, Long>, Long>()
     private val demoSkills = listOf(JobSkill("Kotlin"), JobSkill("SQL"), JobSkill("REST"), JobSkill("Compose", required = false))
+    private val boardRanks = mutableMapOf<Long, Double>()
+    private val boardEvents = mutableListOf<Pair<Long, TimelineEvent>>()
+    private var nextEventId = 1L
 
     init {
         seedCorpus()
@@ -122,7 +131,14 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
             }
             "auth" -> if (method == "POST" && segments.getOrNull(1) == "logout") logout(user, decode(body)) else notFound()
             "application-stages" -> if (method == "GET") ok(stages.filter { query.isNullOrBlank() || it.name.contains(query.trim(), true) }) else notFound()
-            "saved-jobs" -> savedJobs(method, segments.getOrNull(1), user.id, query, body)
+            "saved-jobs" -> when {
+                method == "GET" && segments.getOrNull(1) == "board" && segments.size == 2 -> ok(board(user.id))
+                segments.size == 3 && segments[2] == "move" && (method == "POST" || method == "PATCH") ->
+                    moveCard(user.id, segments[1].toLongOrNull() ?: return notFound(), decode(body))
+                method == "GET" && segments.size == 3 && segments[2] == "timeline" ->
+                    timeline(user.id, segments[1].toLongOrNull() ?: return notFound())
+                else -> savedJobs(method, segments.getOrNull(1), user.id, query, body)
+            }
             "applications" -> applicationsRoute(method, segments.getOrNull(1), user.id, query, body)
             "jobs" -> corpusRoute(method, segments, user.id, pathAndQuery.substringAfter("?", ""))
             else -> notFound()
@@ -474,6 +490,120 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
         )
     }
 
+    // ---------- Kanban (mesmas regras do BoardColumnMapper do backend) ----------
+
+    private fun columnOf(job: SavedJob): BoardColumn {
+        val stage = applications.firstOrNull { it.savedJobId == job.id }?.let { app -> stages.first { it.id == app.stageId }.name.lowercase() }.orEmpty()
+        return when (job.status) {
+            SavedJobStatus.SAVED, SavedJobStatus.PLANNING_TO_APPLY -> BoardColumn.SAVED
+            SavedJobStatus.APPLIED -> BoardColumn.APPLIED
+            SavedJobStatus.IN_PROCESS -> when {
+                "teste" in stage -> BoardColumn.TECH_TEST
+                "entrevista" in stage || "proposta" in stage -> BoardColumn.INTERVIEW
+                else -> BoardColumn.IN_REVIEW
+            }
+            SavedJobStatus.OFFER_RECEIVED -> BoardColumn.OFFER
+            SavedJobStatus.ACCEPTED, SavedJobStatus.REJECTED, SavedJobStatus.WITHDRAWN -> BoardColumn.CLOSED
+        }
+    }
+
+    private fun rankOf(job: SavedJob): Double = boardRanks[job.id ?: 0L] ?: ((job.id ?: 0L) * 1000.0)
+
+    private fun boardCards(userId: Int): List<StoredJob> =
+        jobs.filter { it.userId == userId }.sortedWith(compareBy<StoredJob> { rankOf(it.job) }.thenBy { it.job.savedAt })
+
+    private fun board(userId: Int): Board {
+        val cards = boardCards(userId)
+        return Board(BoardColumn.entries.map { column ->
+            BoardColumnData(column.name, cards.filter { columnOf(it.job) == column }.map { stored ->
+                val job = stored.job
+                val application = applications.firstOrNull { it.savedJobId == job.id }
+                BoardCard(
+                    id = job.id ?: 0L,
+                    positionRole = job.positionRole,
+                    organizationName = job.organizationName,
+                    locationCity = job.locationCity,
+                    workMode = job.workMode,
+                    status = job.status,
+                    applicationId = application?.id,
+                    stageName = application?.let { app -> stages.first { it.id == app.stageId }.name },
+                    statusUpdatedAt = job.statusUpdatedAt?.toString()
+                )
+            })
+        })
+    }
+
+    private fun moveCard(userId: Int, id: Long, request: MoveRequest): HttpResult {
+        val stored = jobs.firstOrNull { it.userId == userId && it.job.id == id } ?: return error(404, "NOT_FOUND", "Vaga não encontrada")
+        val toColumn = BoardColumn.entries.firstOrNull { it.name == request.toColumn } ?: return error(400, "BUSINESS_RULE", "Informe a coluna de destino")
+        val current = stored.job.status
+        val currentColumn = columnOf(stored.job)
+        val outcome = request.outcome
+        if (outcome != null && outcome !in CLOSED_STATUSES) return error(400, "BUSINESS_RULE", "Resultado inválido: use ACCEPTED, REJECTED ou WITHDRAWN")
+        val target = when {
+            toColumn == BoardColumn.CLOSED && outcome != null -> outcome
+            currentColumn == toColumn -> current
+            else -> when (toColumn) {
+                BoardColumn.SAVED -> SavedJobStatus.SAVED
+                BoardColumn.APPLIED -> SavedJobStatus.APPLIED
+                BoardColumn.IN_REVIEW, BoardColumn.INTERVIEW, BoardColumn.TECH_TEST -> SavedJobStatus.IN_PROCESS
+                BoardColumn.OFFER -> SavedJobStatus.OFFER_RECEIVED
+                BoardColumn.CLOSED -> return error(400, "BUSINESS_RULE", "Informe o resultado para mover para Encerradas")
+            }
+        }
+        val application = applications.firstOrNull { it.savedJobId == id }
+        if (toColumn == BoardColumn.SAVED && application != null && currentColumn != BoardColumn.SAVED) {
+            return error(409, "CONFLICT", "Exclua a candidatura para voltar a vaga para Salvas")
+        }
+
+        val siblings = boardCards(userId).filter { columnOf(it.job) == toColumn && it.job.id != id }.map { rankOf(it.job) to it.job.id }
+        val lower = request.beforeId?.let { before -> siblings.firstOrNull { it.second == before }?.first }
+            ?: if (request.afterId == null) siblings.lastOrNull()?.first else null
+        val upper = request.afterId?.let { after -> siblings.firstOrNull { it.second == after }?.first }
+            ?: lower?.let { l -> siblings.firstOrNull { it.first > l }?.first }
+        boardRanks[id] = when {
+            lower == null && upper == null -> 1000.0
+            upper == null -> lower!! + 1000.0
+            lower == null -> upper - 1000.0
+            else -> (lower + upper) / 2
+        }
+
+        if (target != current) stored.job = stored.job.copy(status = target, statusUpdatedAt = now())
+        val columnStage = when (toColumn) {
+            BoardColumn.IN_REVIEW -> "Triagem"
+            BoardColumn.INTERVIEW -> "Entrevista RH"
+            BoardColumn.TECH_TEST -> "Teste técnico"
+            BoardColumn.OFFER -> "Proposta"
+            else -> null
+        }?.takeIf { toColumn != currentColumn }?.let { name -> stages.first { it.name == name }.id }
+        if (target !in setOf(SavedJobStatus.SAVED, SavedJobStatus.PLANNING_TO_APPLY)) {
+            if (application == null) {
+                applications += StoredApplication(nextApplicationId++, userId, id, columnStage ?: 1, target.name, today(), null, null, null, null)
+                recordEvent(id, "APPLICATION_CREATED", "Candidatura criada")
+            } else {
+                application.status = target.name
+                val fromStage = application.stageId
+                if (columnStage != null && columnStage != fromStage) {
+                    application.stageId = columnStage
+                    recordEvent(id, "STAGE_CHANGED", "Etapa: ${stageName(fromStage)} → ${stageName(columnStage)}")
+                }
+            }
+        }
+        recordEvent(id, "MOVED", if (current == target) "Card reordenado" else "Movida de ${current.label} para ${target.label}")
+        return ok(board(userId).columns.flatMap { it.cards }.first { it.id == id })
+    }
+
+    private fun stageName(id: Int): String = stages.first { it.id == id }.name
+
+    private fun recordEvent(savedJobId: Long, type: String, description: String) {
+        boardEvents += savedJobId to TimelineEvent(nextEventId++, type, now().toString(), description)
+    }
+
+    private fun timeline(userId: Int, id: Long): HttpResult {
+        if (jobs.none { it.userId == userId && it.job.id == id }) return error(404, "NOT_FOUND", "Vaga não encontrada")
+        return ok(boardEvents.filter { it.first == id }.map { it.second }.reversed())
+    }
+
     // ---------- corpus (Buscar vagas) ----------
 
     private fun corpusRoute(method: String, segments: List<String>, userId: Int, rawQuery: String): HttpResult {
@@ -642,5 +772,6 @@ class FakeBackendTransport(seed: Boolean = true) : HttpTransport {
         const val DEMO_PASSWORD = "demo1234"
         private val EMAIL = Regex("""^[^@\s]+@[^@\s]+\.[^@\s]+$""")
         private val PASSWORD = Regex("""^(?=.*[A-Za-z])(?=.*\d).+$""")
+        private val CLOSED_STATUSES = setOf(SavedJobStatus.ACCEPTED, SavedJobStatus.REJECTED, SavedJobStatus.WITHDRAWN)
     }
 }

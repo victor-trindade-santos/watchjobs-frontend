@@ -2,6 +2,13 @@
 
 package com.watchjobs.ui.jobs
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,6 +26,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,7 +38,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,10 +57,49 @@ import com.watchjobs.ui.theme.WatchJobsColors
 // Peças dos filtros da busca de vagas. Todos os grupos são opcionais e mexem na lista na hora.
 
 @Composable
-fun FilterGroup(title: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionLabel(title, color = WatchJobsColors.Muted)
-        content()
+fun FilterGroup(
+    title: String,
+    modifier: Modifier = Modifier,
+    collapsible: Boolean = false,
+    activeCount: Int = 0,
+    content: @Composable () -> Unit
+) {
+    if (!collapsible) {
+        Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SectionLabel(title, color = WatchJobsColors.Muted)
+            content()
+        }
+        return
+    }
+    // Grupos fechados por padrão; os que já têm seleção abrem para mostrar o que está marcado.
+    var expanded by remember(title) { mutableStateOf(activeCount > 0) }
+    val rotation by animateFloatAsState(if (expanded) 180f else 0f, tween(180))
+    Column(modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(vertical = 14.dp)
+                .semantics { stateDescription = if (expanded) "Expandido" else "Recolhido" }
+                .testTag("filterGroup_$title"),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SectionLabel(title, Modifier.weight(1f), color = WatchJobsColors.Ink)
+            if (activeCount > 0) {
+                Box(Modifier.background(WatchJobsColors.Red).padding(horizontal = 6.dp, vertical = 1.dp)) {
+                    Text("$activeCount", style = MaterialTheme.typography.labelSmall, color = WatchJobsColors.OnAccent)
+                }
+                Spacer(Modifier.width(8.dp))
+            }
+            Icon(
+                Icons.Default.KeyboardArrowDown,
+                contentDescription = if (expanded) "Recolher $title" else "Expandir $title",
+                tint = WatchJobsColors.Muted,
+                modifier = Modifier.size(20.dp).rotate(rotation)
+            )
+        }
+        AnimatedVisibility(expanded, enter = expandVertically(tween(180)) + fadeIn(tween(180)), exit = shrinkVertically(tween(160)) + fadeOut(tween(120))) {
+            Column(Modifier.fillMaxWidth().padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                content()
+            }
+        }
     }
 }
 
@@ -103,7 +155,8 @@ fun <T> MultiSelectFilter(
     onChange: (Set<T>) -> Unit,
     tag: String,
     count: (T) -> Long? = { null },
-    visibleLimit: Int = Int.MAX_VALUE
+    visibleLimit: Int = Int.MAX_VALUE,
+    collapsible: Boolean = false
 ) {
     var search by remember { mutableStateOf("") }
     var expanded by remember { mutableStateOf(false) }
@@ -114,7 +167,7 @@ fun <T> MultiSelectFilter(
     val matching = if (search.isBlank()) all else all.filter { label(it).contains(search.trim(), ignoreCase = true) }
     val shown = if (expanded || matching.size <= visibleLimit) matching else matching.take(visibleLimit)
 
-    FilterGroup(title) {
+    FilterGroup(title, collapsible = collapsible, activeCount = selected.size) {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             TextAction("Selecionar todos", { onChange(selected + matching) }, Modifier.testTag("${tag}_all"), enabled = matching.any { it !in selected })
             TextAction("Limpar seleção", { onChange(emptySet()) }, Modifier.testTag("${tag}_clear"), enabled = selected.isNotEmpty())
@@ -139,10 +192,10 @@ fun <T> MultiSelectFilter(
 
 // Faixa em reais por mês: só mínimo, só máximo, os dois ou nenhum.
 @Composable
-fun SalaryRangeFilter(min: Long?, max: Long?, onChange: (Long?, Long?) -> Unit) {
+fun SalaryRangeFilter(min: Long?, max: Long?, collapsible: Boolean = false, onChange: (Long?, Long?) -> Unit) {
     var minText by remember(min) { mutableStateOf(min?.toString().orEmpty()) }
     var maxText by remember(max) { mutableStateOf(max?.toString().orEmpty()) }
-    FilterGroup("Faixa salarial (R$ por mês)") {
+    FilterGroup("Faixa salarial (R$ por mês)", collapsible = collapsible, activeCount = listOfNotNull(min, max).size) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LabeledTextField(
                 "Mínimo", minText,
@@ -177,12 +230,13 @@ fun SkillsFilter(
     onRemove: (Long) -> Unit,
     onClear: () -> Unit,
     onLoadMore: () -> Unit,
-    onModeChange: (SkillMatchMode) -> Unit
+    onModeChange: (SkillMatchMode) -> Unit,
+    collapsible: Boolean = false
 ) {
     var term by remember { mutableStateOf("") }
     val chosen = selected.map { it.id }.toSet()
     val options = suggestions.filter { it.id !in chosen }
-    FilterGroup("Skills / Tecnologias") {
+    FilterGroup("Skills / Tecnologias", collapsible = collapsible, activeCount = selected.size) {
         LabeledTextField("Pesquisar skill", term, { term = it; onSearch(it) }, placeholder = "Ex.: Spring", tag = "skillSearch")
         if (term.isNotBlank()) {
             Column(

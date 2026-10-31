@@ -12,16 +12,26 @@ plugins {
 // URL do backend definida no build, não no código (F7-05): -Pwatchjobs.apiUrl=https://api.exemplo.com
 // Vazia = cada plataforma usa a sua padrão de desenvolvimento.
 val apiUrl = providers.gradleProperty("watchjobs.apiUrl").orElse("")
+// Push no Android (F04): dados públicos do app no Firebase. Vazios = push desligado.
+val fcmProps = listOf("appId", "apiKey", "projectId", "senderId").associateWith { key ->
+    providers.gradleProperty("watchjobs.fcm.$key").orElse(providers.environmentVariable("WATCHJOBS_FCM_${key.uppercase()}")).orElse("")
+}
 val generateBuildEnv = tasks.register("generateBuildEnv") {
     val output = layout.buildDirectory.dir("generated/buildEnv/kotlin")
     val url = apiUrl
+    val fcm = fcmProps
     inputs.property("apiUrl", url)
+    fcm.forEach { (key, value) -> inputs.property("fcm_$key", value) }
     outputs.dir(output)
     doLast {
         val file = output.get().file("com/watchjobs/BuildEnv.kt").asFile
         file.parentFile.mkdirs()
-        val escaped = url.get().replace("\\", "\\\\").replace("\"", "\\\"")
-        file.writeText("package com.watchjobs\n\ninternal object BuildEnv {\n    const val API_URL: String = \"$escaped\"\n}\n")
+        fun esc(value: String) = value.replace("\\", "\\\\").replace("\"", "\\\"")
+        val fcmLines = fcm.entries.joinToString("") { (key, value) ->
+            val name = "FCM_" + key.replace(Regex("([a-z])([A-Z])"), "$1_$2").uppercase()
+            "    const val $name: String = \"${esc(value.get())}\"\n"
+        }
+        file.writeText("package com.watchjobs\n\ninternal object BuildEnv {\n    const val API_URL: String = \"${esc(url.get())}\"\n$fcmLines}\n")
     }
 }
 
@@ -60,6 +70,7 @@ kotlin {
         }
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
+            implementation(libs.firebase.messaging)
         }
         commonMain {
             kotlin.srcDir(generateBuildEnv)

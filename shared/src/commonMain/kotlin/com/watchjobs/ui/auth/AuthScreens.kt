@@ -96,7 +96,7 @@ fun LoginScreen(
 @Composable
 fun SignupScreen(
     viewModel: SignupViewModel,
-    onSignedUp: (email: String) -> Unit,
+    onSignedUp: (email: String, loggedIn: Boolean) -> Unit,
     onBackToLogin: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
