@@ -27,7 +27,13 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
-      - run: bash ./gradlew :webApp:wasmJsBrowserDistribution -Pwatchjobs.apiUrl=${{ vars.API_URL }} --no-daemon
+       # O gradle.properties limita a memória para máquinas de desenvolvimento; o Wasm de produção precisa de mais.
+      - run: >
+          bash ./gradlew :webApp:wasmJsBrowserDistribution
+          -Pwatchjobs.apiUrl=${{ vars.API_URL }}
+          -Pkotlin.daemon.jvmargs=-Xmx4g
+          -Dorg.gradle.jvmargs="-Xmx2g -Dfile.encoding=UTF-8"
+          --no-daemon
       - uses: actions/upload-pages-artifact@v3
         with:
           path: webApp/build/dist/wasmJs/productionExecutable
