@@ -30,7 +30,7 @@ class NavbarMenuTest {
         }
         onAllNodesWithTag("deleteAccountButton").assertCountEquals(0)
         onAllNodesWithText("Excluir").assertCountEquals(0)
-        onNodeWithTag("unreadBadge").assertExists()
+        onNodeWithTag("unreadBadge", useUnmergedTree = true).assertExists()
 
         UserMenuAction.standard.forEach { action ->
             onNodeWithTag("userMenu").performClick()

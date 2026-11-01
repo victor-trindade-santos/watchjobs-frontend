@@ -18,9 +18,10 @@ import kotlin.test.Test
 class ExpandableTextTest {
     private val longText = (1..30).joinToString("\n") { "$it. Liderei a migração de serviços críticos com foco em disponibilidade." }
 
+    // Janela alta: expandido, o texto longo (~1200px) não pode espremer o curto nem empurrar o botão para fora da tela.
     @Test
-    fun longTextShowsToggleAndKeepsFullContent() = runDesktopComposeUiTest(width = 600, height = 800) {
-        setContent {
+    fun longTextShowsToggleAndKeepsFullContent() = runDesktopComposeUiTest(width = 600, height = 2000) {
+          setContent {
             Column(Modifier.width(400.dp)) {
                 ExpandableText(longText, collapsedLines = 3, tag = "summary")
                 ExpandableText("Curto.", collapsedLines = 3, tag = "short")
